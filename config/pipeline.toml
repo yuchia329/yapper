@@ -1,0 +1,115 @@
+# Pipeline configuration. Tunables live here; code reads this, never hard-codes.
+
+[paths]
+# Per-movie working dirs land under artifacts_dir/<movie-slug>/.
+# scratch_dir holds large normalized re-encode segments during render.
+# NOTE: this Mac has little free disk — point these at an external volume if needed.
+artifacts_dir = "artifacts"
+scratch_dir = "scratch"
+
+[asr]
+prefer_embedded_subs = true   # try ffmpeg subtitle extraction before ASR
+model = "large-v3"            # WhisperX backbone (source is foreign/English)
+language = "en"               # source-film language; narration is always Mandarin
+diarize = false               # enable in P2 for character attribution
+
+[scene_detect]
+adaptive_threshold = 1.2      # AdaptiveDetector (live-action default)
+min_shot_len_sec = 0.6
+fade_threshold = 12.0         # ThresholdDetector — fade-to-black act breaks
+downscale = 0                 # 0 = auto by resolution
+
+[scene_group]
+# Two-tier reduction: ~1-2.5k shots -> finer narrative scenes. ~300 scenes (~20s each)
+# on a 90-120min film give the LLM distinct, specific footage per line (fewer dup clips,
+# tighter text<->clip match). Capped by target_scenes_max; text is always sent for every
+# scene, only keyframe IMAGES are subset to the LLM image limit (see [llm] max_images).
+target_scenes = 300           # direct target count (overrides the old shots//8 heuristic)
+target_scenes_min = 40
+target_scenes_max = 360
+merge_gap_sec = 6.0           # shots closer than this with no hard cut merge into a scene
+keyframes_per_scene = 1       # 1 best frame/scene — with ~300 scenes this stays under max_images
+
+[keyframe]
+candidates = 5                # equidistant candidate frames per scene
+sharpness_weight = 0.7        # Laplacian variance (z-scored)
+brightness_weight = 0.3       # LAB luminance (z-scored)
+skip_edge_frac = 0.10         # ignore first/last 10% (transition frames)
+downscale_long_edge_px = 1024 # cap Claude image-token cost
+jpeg_quality = 85
+workers = 0                   # parallel scene keyframe extraction; 0 = auto (min(8, cpu cores))
+
+[llm]
+# 解说 script brain. OpenAI-compatible: works for MiniMax and self-hosted vLLM
+# (only base_url + model change). Set MINIMAX_API_KEY in .env.
+provider = "minimax"
+base_url = "https://api.minimax.io/v1"   # overridable via LLM_BASE_URL
+model = "MiniMax-M3"                      # overridable via LLM_MODEL
+temperature = 0.7
+max_output_tokens = 32000
+vision = true                            # set false if the model is text-only (skips keyframe images)
+max_images = 180                         # cap keyframes sent per request (MiniMax allows <=200 images)
+request_timeout_sec = 1800               # per-request timeout; M3 reasoning + long script can be slow
+# MiniMax-M3 reasoning control (enabled | adaptive | disabled). MAP needs reasoning to
+# understand the plot; REDUCE just writes from the beat sheet, so disabling thinking there
+# frees the whole 32K output budget for narration (the script was getting cut short by <think>).
+thinking_map = "adaptive"
+thinking_reduce = "disabled"
+
+[platform.douyin]
+target_min_sec = 600          # 10 min
+target_max_sec = 720          # 12 min
+hook_seconds = 3              # opening hook budget
+structure = "hook -> conflict -> emotional_peak -> cta"
+
+[tts]
+provider = "cosyvoice2"       # cosyvoice2 | indextts2
+# Server-side path to the cloned-narrator reference clip + its transcript. Built by
+# scripts/build_narrator_ref.py (auto-extracted from a reference 解说 video). When set,
+# the client passes them per-request so the voice is swappable without restarting the
+# service; empty -> service falls back to its TTS_REF_WAV/TTS_REF_TEXT env (or placeholder).
+reference_clip = "/home/ychan137/jieshuo/voices/narrator_ref.wav"   # path ON the GPU server (auto-extracted from RushHour1_final.webm)
+reference_text = "然而FBI却说成龙肤浅没见过大场面几时后FBI大摇大摆冲进房间空荡荡的房间内只有一部电话此时刚好铃声响起FBI接起电话的瞬间整层楼发生剧烈的爆炸一屋子的FBI瞬间被团灭这个场面确实是大场面没毛病"
+seed = 42                     # pin voice + seed so timbre never drifts
+target_lufs = -16.0
+workers = 1                   # parallel TTS requests; the single TTS GPU serializes, so 2-3 is the realistic ceiling
+
+[audio]
+# Under narration, play the film's OWN score/SFX as a bed (dialogue stripped via Demucs,
+# so it doesn't clash with the voiceover). Built once per movie by scripts/separate_score.py
+# into artifacts/<movie>/audio_novocals.wav. During raw-playback segments the full original
+# audio (dialogue included) returns. If the stem is missing, render falls back to ducking the
+# raw movie audio under the VO.
+score_bed = true
+bed_gain_db = -14.0           # score-bed level relative to the voiceover (VO stays dominant)
+
+[playback]
+# Raw-playback "breathing" segments: a window of original footage plays at full original
+# audio with NO voiceover (key dialogue / fights / songs / reveals / funny lines). The
+# window is grounded to the featured line's transcript span, clamped to this range — so a
+# long scene shows a continuous portion and narration resumes after.
+min_window_sec = 3.0
+max_window_sec = 12.0
+
+[render]
+width = 1920
+height = 1080
+fps = 30
+vcodec = "libx264"            # CPU encode (vendored static ffmpeg has libass but not VideoToolbox)
+pix_fmt = "yuv420p"
+audio_rate = 48000
+target_lufs = -16.0
+workers = 0                   # parallel per-segment encodes; 0 = auto (min(4, cpu cores)). libx264 is already multithreaded — raise cautiously
+
+[ducking]
+# sidechaincompress: lower original audio under the narration
+threshold = 0.03
+ratio = 8
+attack = 5
+release = 300
+
+[subtitles]
+font_name = "Noto Sans CJK SC"
+font_size = 48
+border_style = 3              # opaque box behind text
+margin_v = 60

@@ -1,0 +1,31 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# env / secrets
+.env
+
+# working data (large, regenerable)
+artifacts/
+scratch/
+*.mp4
+*.mkv
+*.mov
+*.wav
+*.sqlite
+
+# fonts are bundled but large; keep the dir, ignore the binaries by default
+config/fonts/*.otf
+config/fonts/*.ttf
+config/fonts/*.ttc
+
+# vendored static ffmpeg binaries (large; re-downloadable)
+vendor/ffmpeg/ffmpeg
+vendor/ffmpeg/ffprobe
+
+# os
+.DS_Store

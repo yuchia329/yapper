@@ -1,0 +1,19 @@
+# GPU-server inference services (Linux + CUDA 12). NOT for the Mac orchestrator.
+# Install ASR and TTS in SEPARATE conda envs — their torch/dependency pins conflict.
+
+# --- shared web layer ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9   # multipart file upload for /transcribe
+
+# --- ASR env (asr_service.py) ---
+# whisperx pulls faster-whisper, ctranslate2, pyannote.audio, torch.
+# Requires CUDA 12 + cuDNN 9 (version mismatch is the #1 failure — see README_deploy.md).
+whisperx>=3.1
+
+# --- TTS env (tts_service.py) ---
+# CosyVoice2 is a SOURCE install, not on PyPI. Follow README_deploy.md:
+#   git clone --recursive https://github.com/FunAudioLLM/CosyVoice
+#   pip install -r CosyVoice/requirements.txt
+#   modelscope snapshot_download iic/CosyVoice2-0.5B -> pretrained_models/CosyVoice2-0.5B
+# torch / torchaudio come from CosyVoice's requirements.

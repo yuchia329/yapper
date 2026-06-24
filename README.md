@@ -2,10 +2,10 @@
 
 Turn any video into a punchy Mandarin **funny-commentary** track in the Douyin/Kuaishou
 短片解說 style: condensed footage plays under an AI-generated voiceover that retells the
-story _and_ riffs on it. Works on full-length **movies** (a ~10–12 min funny recap) and
+story *and* riffs on it. Works on full-length **movies** (a ~10–12 min funny recap) and
 short **clips** like vlogs (a 1–3 min riff). English (YouTube-style) commentary is supported too.
 
-🔗 **[Live demo → yapper.yuchia.dev](https://yapper.yuchia.dev)** &nbsp;·&nbsp;
+🔗 **[Live demo → yapper.yuchia.dev](https://yapper.yuchia.dev)**  · 
 📊 **[Grafana dashboard](https://grafana.yuchia.dev/d/yapper-overview/yapper-c2b7-overview?orgId=1&from=now-24h&to=now&timezone=America%2FLos_Angeles&var-datasource=prometheus&refresh=auto)**
 
 ---
@@ -14,24 +14,12 @@ short **clips** like vlogs (a 1–3 min riff). English (YouTube-style) commentar
 
 A 25-second taste (plays inline) — then the full recap on YouTube:
 
-<p align="center">
-  <video src="docs/demo-clip.mp4" width="640" controls poster="https://img.youtube.com/vi/LF0VHx4xo_8/maxresdefault.jpg"></video>
-</p>
 
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=LF0VHx4xo_8&t=311s">
-    <img src="https://img.youtube.com/vi/LF0VHx4xo_8/maxresdefault.jpg" width="480" alt="Watch the full Yapper recap on YouTube">
-  </a>
-  <br>
-  <em>▶ Watch the full recap on YouTube</em>
-</p>
 
-<!-- The inline clip uses a RELATIVE path so it previews in local Markdown viewers (VS Code, etc.).
-     On GitHub.com a relative <video> src is unreliable — for the published README use the
-     bulletproof method: open a new GitHub issue, drag docs/demo-clip.mp4 into the comment box, copy
-     the https://github.com/user-attachments/assets/… URL GitHub generates, and replace the
-     <video src="…"> above with that URL (renders a real inline player on GitHub). The YouTube
-     thumbnail below always works as the fallback. -->
+  
+*▶ Watch the full recap on YouTube*
+
+
 
 ---
 
@@ -52,6 +40,7 @@ video ─▶ probe ─▶ extract audio ─▶ ASR ─▶ detect shots ─▶ sc
             └─────────────────────────────────────────────────────────────────┘
 ```
 
+
 | #   | Stage              | What it does                                                            | Compute |
 | --- | ------------------ | ----------------------------------------------------------------------- | ------- |
 | 1   | `ingest` (probe)   | ffprobe dims/rotation/duration → `probe.json`                           | CPU     |
@@ -60,21 +49,19 @@ video ─▶ probe ─▶ extract audio ─▶ ASR ─▶ detect shots ─▶ sc
 | 4   | `shots`            | shot-boundary detection (PySceneDetect)                                 | CPU     |
 | 5   | `scenes`           | group shots → scenes, pick keyframes, build the **clip_index**          | CPU     |
 | 6   | `understand` (MAP) | LLM reads transcript + keyframes → beat sheet                           | **LLM** |
-| 7   | `script` (REDUCE)  | LLM writes the 解說 narration grounded to `clip_ref`s                   | **LLM** |
+| 7   | `script` (REDUCE)  | LLM writes the 解說 narration grounded to `clip_ref`s                     | **LLM** |
 | 8   | `budget`           | fit the script to the target runtime (spoken-rate model)                | CPU     |
 | 9   | `tts`              | synthesize the voiceover with a **cloned voice** (CosyVoice2/IndexTTS2) | **GPU** |
 | 10  | `edl`              | build an audio-driven edit decision list                                | CPU     |
 | 11  | `subs`             | timed, width-fit subtitle pieces (ASS)                                  | CPU     |
 | 12  | `render`           | ffmpeg: conform footage to the VO, burn subs, mix score bed             | CPU     |
 
+
 Output preserves the source aspect ratio (portrait stays portrait, longest side capped at 1080)
 and plays the film's own score/SFX as a bed under the narration (dialogue stripped via Demucs).
 
-<p align="center">
-  <img src="docs/home-pipeline.png" width="760" alt="Yapper web UI showing the 12-stage pipeline running on a video, with per-stage timings and CPU/GPU/LLM color-coded tracks">
-  <br>
-  <em>The web UI — every upload runs the 12 stages with live per-stage timings; colors mark CPU / GPU / LLM work.</em>
-</p>
+  
+*The web UI — every upload runs the 12 stages with live per-stage timings; colors mark CPU / GPU / LLM work.*
 
 ### The load-bearing idea: `clip_ref` grounding
 
@@ -88,13 +75,13 @@ reverse — so the cut always matches what's being said.
 The script "brain" is any **OpenAI-compatible** chat model — only `LLM_BASE_URL` + `LLM_MODEL` change.
 
 - **Default: MiniMax-M3** (`https://api.minimax.io/v1`) — a vision-capable reasoning model that
-  accepts up to ~200 keyframe images per request, so it can actually _see_ the footage it narrates.
+accepts up to ~200 keyframe images per request, so it can actually *see* the footage it narrates.
 - **MAP vs REDUCE thinking budget:** the `understand` (MAP) pass runs with reasoning **on**
-  (`thinking_map = "adaptive"`) to grasp the plot; the `script` (REDUCE) pass runs with reasoning
-  **off** (`thinking_reduce = "disabled"`) so the full 32K output budget goes to narration instead
-  of being eaten by `<think>` tokens.
+(`thinking_map = "adaptive"`) to grasp the plot; the `script` (REDUCE) pass runs with reasoning
+**off** (`thinking_reduce = "disabled"`) so the full 32K output budget goes to narration instead
+of being eaten by `<think>` tokens.
 - **Swappable:** point it at **Anthropic Claude**, **OpenAI**, or a **self-hosted vLLM** endpoint by
-  changing `LLM_BASE_URL`/`LLM_MODEL` (set `vision = false` in `config/pipeline.toml` for text-only models).
+changing `LLM_BASE_URL`/`LLM_MODEL` (set `vision = false` in `config/pipeline.toml` for text-only models).
 
 Speech models run on the GPU box: **WhisperX** (ASR, `large-v3`) and **CosyVoice2** (TTS, zero-shot
 voice cloning; IndexTTS2 optional). Diarization uses **pyannote** (`HF_TOKEN`).
@@ -123,14 +110,14 @@ Browser ─cookie─▶ Cloudflare (edge TLS) ─▶ Traefik ─▶ FastAPI (api
 ```
 
 - **Cluster:** single-node **k3s** on a `t4g.large` (ARM64) EC2; one collapsed Celery worker drains
-  all queues (`cpu,asr,tts,llm,render`). Local dev runs the same images via Docker Compose.
+all queues (`cpu,asr,tts,llm,render`). Local dev runs the same images via Docker Compose.
 - **On-demand GPU:** a supervisor (`gpud`) on the shared GPU box leases ASR/TTS instances per task and
-  releases them when idle, so the box isn't pinned. The cluster reaches it through an SSH-forward sidecar.
+releases them when idle, so the box isn't pinned. The cluster reaches it through an SSH-forward sidecar.
 - **Artifacts:** per-session objects in S3 (prod) / MinIO (local) via presigned URLs; the source video
-  never transits the app servers.
+never transits the app servers.
 - **Observability:** Prometheus + **Grafana** + Loki — see the
-  [Yapper overview dashboard](https://grafana.yuchia.dev/d/yapper-overview/yapper-c2b7-overview?orgId=1&from=now-24h&to=now&timezone=America%2FLos_Angeles&var-datasource=prometheus&refresh=auto)
-  (per-stage timings, LLM tokens/cost, GPU lease activity).
+[Yapper overview dashboard](https://grafana.yuchia.dev/d/yapper-overview/yapper-c2b7-overview?orgId=1&from=now-24h&to=now&timezone=America%2FLos_Angeles&var-datasource=prometheus&refresh=auto)
+(per-stage timings, LLM tokens/cost, GPU lease activity).
 
 ## Repository layout
 
@@ -189,7 +176,7 @@ GPU-box bring-up (WhisperX + CosyVoice2 + gpud) is documented separately in
 
 ## Configuration
 
-All tunables live in **[`config/pipeline.toml`](config/pipeline.toml)** — LLM provider/model and
+All tunables live in `**[config/pipeline.toml](config/pipeline.toml)`** — LLM provider/model and
 thinking budgets, ASR model, scene-detection thresholds, keyframe limits, TTS voice/reference,
 narration target runtime, render preset/CRF, and subtitle styling. Code reads this file; nothing is
 hard-coded.

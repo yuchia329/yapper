@@ -1,7 +1,7 @@
 # Copy to terraform.tfvars (gitignored) and fill in. Secrets can also be passed as
 # TF_VAR_* environment variables instead of living in this file.
 
-kubeconfig_path = "~/.kube/recap-k3s.yaml"   # points at the k3s API (via the ssh -L 6443 tunnel)
+kubeconfig_path = "~/.kube/yapper-k3s.yaml"   # points at the k3s API (via the ssh -L 6443 tunnel)
 image_tag       = "latest"                   # set to the git sha you built with build_and_load.sh
 
 # AWS (creds come from the AWS_* env / profile, NOT here)

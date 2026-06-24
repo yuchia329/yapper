@@ -14,12 +14,12 @@ Layout created on the server:
     asr/  pyproject.toml # uv sync -> server/asr/.venv   (WhisperX + gpud + NVML)
     tts/  pyproject.toml # uv sync -> server/tts/.venv   (+ uv pip install CosyVoice reqs)
     asr_service.py tts_service.py gpud.py _metrics.py
-  jieshuorpc/           # generated gRPC stubs (scp'd from this repo; on PYTHONPATH)
+  yapper_rpc/           # generated gRPC stubs (scp'd from this repo; on PYTHONPATH)
   models/CosyVoice2-0.5B# downloaded weights
   voices/               # your cloned-narrator reference clip goes here
 ```
-> Copy `server/` and `jieshuorpc/` from this repo to `~/jieshuo/`, and run from `~/jieshuo`
-> with `PYTHONPATH=~/jieshuo` so `import jieshuorpc` and `import _metrics` resolve (the
+> Copy `server/` and `yapper_rpc/` from this repo to `~/jieshuo/`, and run from `~/jieshuo`
+> with `PYTHONPATH=~/jieshuo` so `import yapper_rpc` and `import _metrics` resolve (the
 > uv envs manage third-party deps; the code + stubs ride PYTHONPATH).
 
 ## One-time setup (uv)
@@ -28,14 +28,14 @@ Layout created on the server:
 its reqs, downloads weights):
 ```bash
 # from your machine: push code + stubs, then run the setup script on the box
-scp -r server jieshuorpc nlp:~/jieshuo/
+scp -r server yapper_rpc nlp:~/jieshuo/
 ssh nlp 'bash ~/jieshuo/server/setup_gpu.sh'
 ```
 
 Or the equivalent steps by hand:
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh          # uv
-scp -r server jieshuorpc nlp:~/jieshuo/                  # (from your machine)
+scp -r server yapper_rpc nlp:~/jieshuo/                  # (from your machine)
 
 # ASR + gpud env — Python 3.12 (whisperx's onnxruntime has no 3.10 wheels)
 uv sync --python 3.12 --project ~/jieshuo/server/asr
@@ -97,7 +97,7 @@ local `docker compose` dev session shares the box's gpud rather than launching a
 
 ## Run — option B: always-on servers (manual)
 ```bash
-# each in its own shell / tmux; run from ~/jieshuo, PYTHONPATH so jieshuorpc + _metrics resolve:
+# each in its own shell / tmux; run from ~/jieshuo, PYTHONPATH so yapper_rpc + _metrics resolve:
 cd ~/jieshuo
 CUDA_VISIBLE_DEVICES=2 PYTHONPATH=~/jieshuo TTS_GRPC_PORT=50052 TTS_METRICS_PORT=9102 \
     uv run --no-sync --project server/tts python server/tts_service.py     # CosyVoice2 -> :50052

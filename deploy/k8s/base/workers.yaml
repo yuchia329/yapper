@@ -5,112 +5,112 @@
 # replicas:1 / concurrency:1 because one model per GPU is serialized.
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: worker-cpu, labels: {app: jieshuo, component: worker-cpu}}
+metadata: {name: worker-cpu, labels: {app: yapper, component: worker-cpu}}
 spec:
   replicas: 1
-  selector: {matchLabels: {app: jieshuo, component: worker-cpu}}
+  selector: {matchLabels: {app: yapper, component: worker-cpu}}
   template:
-    metadata: {labels: {app: jieshuo, component: worker-cpu}}
+    metadata: {labels: {app: yapper, component: worker-cpu}}
     spec:
       containers:
         - name: worker
-          image: jieshuoforge:latest
+          image: yapper:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "jieshuoforge_web.tasks", "worker", "-Q", "cpu", "-n", "cpu@%h", "--concurrency", "2", "-l", "info"]
-          envFrom: [{configMapRef: {name: jieshuo-config}}, {secretRef: {name: jieshuo-secrets}}]
+          command: ["celery", "-A", "yapper_web.tasks", "worker", "-Q", "cpu", "-n", "cpu@%h", "--concurrency", "2", "-l", "info"]
+          envFrom: [{configMapRef: {name: yapper-config}}, {secretRef: {name: yapper-secrets}}]
           volumeMounts: [{name: work, mountPath: /scratch/work}]
           resources: {requests: {cpu: "250m", memory: "512Mi"}, limits: {cpu: "2", memory: "2Gi"}}
       volumes: [{name: work, emptyDir: {}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: worker-asr, labels: {app: jieshuo, component: worker-asr}}
+metadata: {name: worker-asr, labels: {app: yapper, component: worker-asr}}
 spec:
   replicas: 1                         # one ASR model per GPU -> serialize
-  selector: {matchLabels: {app: jieshuo, component: worker-asr}}
+  selector: {matchLabels: {app: yapper, component: worker-asr}}
   template:
-    metadata: {labels: {app: jieshuo, component: worker-asr}}
+    metadata: {labels: {app: yapper, component: worker-asr}}
     spec:
       containers:
         - name: worker
-          image: jieshuoforge:latest
+          image: yapper:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "jieshuoforge_web.tasks", "worker", "-Q", "asr", "-n", "asr@%h", "--concurrency", "3", "-l", "info"]
-          envFrom: [{configMapRef: {name: jieshuo-config}}, {secretRef: {name: jieshuo-secrets}}]
+          command: ["celery", "-A", "yapper_web.tasks", "worker", "-Q", "asr", "-n", "asr@%h", "--concurrency", "3", "-l", "info"]
+          envFrom: [{configMapRef: {name: yapper-config}}, {secretRef: {name: yapper-secrets}}]
           volumeMounts: [{name: work, mountPath: /scratch/work}]
           resources: {requests: {cpu: "100m", memory: "512Mi"}, limits: {cpu: "1", memory: "2Gi"}}
       volumes: [{name: work, emptyDir: {}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: worker-tts, labels: {app: jieshuo, component: worker-tts}}
+metadata: {name: worker-tts, labels: {app: yapper, component: worker-tts}}
 spec:
   replicas: 1                         # one TTS model per GPU -> serialize (overlaps ASR)
-  selector: {matchLabels: {app: jieshuo, component: worker-tts}}
+  selector: {matchLabels: {app: yapper, component: worker-tts}}
   template:
-    metadata: {labels: {app: jieshuo, component: worker-tts}}
+    metadata: {labels: {app: yapper, component: worker-tts}}
     spec:
       containers:
         - name: worker
-          image: jieshuoforge:latest
+          image: yapper:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "jieshuoforge_web.tasks", "worker", "-Q", "tts", "-n", "tts@%h", "--concurrency", "3", "-l", "info"]
-          envFrom: [{configMapRef: {name: jieshuo-config}}, {secretRef: {name: jieshuo-secrets}}]
+          command: ["celery", "-A", "yapper_web.tasks", "worker", "-Q", "tts", "-n", "tts@%h", "--concurrency", "3", "-l", "info"]
+          envFrom: [{configMapRef: {name: yapper-config}}, {secretRef: {name: yapper-secrets}}]
           volumeMounts: [{name: work, mountPath: /scratch/work}]
           resources: {requests: {cpu: "100m", memory: "512Mi"}, limits: {cpu: "1", memory: "2Gi"}}
       volumes: [{name: work, emptyDir: {}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: worker-llm, labels: {app: jieshuo, component: worker-llm}}
+metadata: {name: worker-llm, labels: {app: yapper, component: worker-llm}}
 spec:
   replicas: 1
-  selector: {matchLabels: {app: jieshuo, component: worker-llm}}
+  selector: {matchLabels: {app: yapper, component: worker-llm}}
   template:
-    metadata: {labels: {app: jieshuo, component: worker-llm}}
+    metadata: {labels: {app: yapper, component: worker-llm}}
     spec:
       containers:
         - name: worker
-          image: jieshuoforge:latest
+          image: yapper:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "jieshuoforge_web.tasks", "worker", "-Q", "llm", "-n", "llm@%h", "--concurrency", "2", "-l", "info"]
-          envFrom: [{configMapRef: {name: jieshuo-config}}, {secretRef: {name: jieshuo-secrets}}]
+          command: ["celery", "-A", "yapper_web.tasks", "worker", "-Q", "llm", "-n", "llm@%h", "--concurrency", "2", "-l", "info"]
+          envFrom: [{configMapRef: {name: yapper-config}}, {secretRef: {name: yapper-secrets}}]
           volumeMounts: [{name: work, mountPath: /scratch/work}]
           resources: {requests: {cpu: "100m", memory: "512Mi"}, limits: {cpu: "1", memory: "2Gi"}}
       volumes: [{name: work, emptyDir: {}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: worker-render, labels: {app: jieshuo, component: worker-render}}
+metadata: {name: worker-render, labels: {app: yapper, component: worker-render}}
 spec:
   replicas: 1
-  selector: {matchLabels: {app: jieshuo, component: worker-render}}
+  selector: {matchLabels: {app: yapper, component: worker-render}}
   template:
-    metadata: {labels: {app: jieshuo, component: worker-render}}
+    metadata: {labels: {app: yapper, component: worker-render}}
     spec:
       containers:
         - name: worker
-          image: jieshuoforge:latest
+          image: yapper:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "jieshuoforge_web.tasks", "worker", "-Q", "render", "-n", "render@%h", "--concurrency", "2", "-l", "info"]
-          envFrom: [{configMapRef: {name: jieshuo-config}}, {secretRef: {name: jieshuo-secrets}}]
+          command: ["celery", "-A", "yapper_web.tasks", "worker", "-Q", "render", "-n", "render@%h", "--concurrency", "2", "-l", "info"]
+          envFrom: [{configMapRef: {name: yapper-config}}, {secretRef: {name: yapper-secrets}}]
           volumeMounts: [{name: work, mountPath: /scratch/work}]
           resources: {requests: {cpu: "500m", memory: "1Gi"}, limits: {cpu: "4", memory: "4Gi"}}
       volumes: [{name: work, emptyDir: {}}]
 ---
 apiVersion: apps/v1
 kind: Deployment
-metadata: {name: beat, labels: {app: jieshuo, component: beat}}
+metadata: {name: beat, labels: {app: yapper, component: beat}}
 spec:
   replicas: 1
-  selector: {matchLabels: {app: jieshuo, component: beat}}
+  selector: {matchLabels: {app: yapper, component: beat}}
   template:
-    metadata: {labels: {app: jieshuo, component: beat}}
+    metadata: {labels: {app: yapper, component: beat}}
     spec:
       containers:
         - name: beat
-          image: jieshuoforge:latest
+          image: yapper:latest
           imagePullPolicy: IfNotPresent
-          command: ["celery", "-A", "jieshuoforge_web.tasks", "beat", "-l", "info"]
-          envFrom: [{configMapRef: {name: jieshuo-config}}, {secretRef: {name: jieshuo-secrets}}]
+          command: ["celery", "-A", "yapper_web.tasks", "beat", "-l", "info"]
+          envFrom: [{configMapRef: {name: yapper-config}}, {secretRef: {name: yapper-secrets}}]
           resources: {requests: {cpu: "50m", memory: "128Mi"}, limits: {cpu: "250m", memory: "256Mi"}}

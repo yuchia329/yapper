@@ -10,7 +10,7 @@ warn() { printf "  \033[33m!\033[0m %s\n" "$1"; }
 [ -f .env ] && { set -a; . ./.env; set +a; }
 
 echo "== ffmpeg =="
-# resolve the same way jieshuoforge.ffmpeg.run does: FFMPEG_BIN -> vendored -> PATH
+# resolve the same way yapper.ffmpeg.run does: FFMPEG_BIN -> vendored -> PATH
 FF="${FFMPEG_BIN:-}"
 [ -z "$FF" ] && [ -x vendor/ffmpeg/ffmpeg ] && FF=vendor/ffmpeg/ffmpeg
 [ -z "$FF" ] && FF="$(command -v ffmpeg 2>/dev/null)"

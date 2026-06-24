@@ -1,6 +1,6 @@
 """Build the score bed: source-separate a movie's audio into a no-dialogue track.
 
-Under narration the recap plays the film's OWN score/SFX (not its dialogue) beneath
+Under narration the commentary plays the film's OWN score/SFX (not its dialogue) beneath
 the voiceover, so the background isn't dead air and the dialogue doesn't clash with
 the narration. We get that track by running Demucs on the movie's audio and keeping
 the `no_vocals` stem (everything except speech/singing).
@@ -29,8 +29,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from jieshuoforge.config import load_config  # noqa: E402
-from jieshuoforge.ffmpeg.run import FFMPEG  # noqa: E402
+from yapper.config import load_config  # noqa: E402
+from yapper.ffmpeg.run import FFMPEG  # noqa: E402
 
 _SCP_KEEPALIVE = ["-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=4"]
 

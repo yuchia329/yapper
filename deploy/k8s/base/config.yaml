@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: jieshuo-config
+  name: yapper-config
 data:
   # Storage: object store everywhere (MinIO local / AWS S3 prod). Endpoint overrides
   # are added by the overlays (S3_ENDPOINT_URL / S3_PUBLIC_ENDPOINT_URL).
@@ -32,7 +32,7 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: jieshuo-secrets
+  name: yapper-secrets
 type: Opaque
 stringData:
   # REPLACE these before applying (or wire to a secrets manager / sealed-secrets / IRSA).

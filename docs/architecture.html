@@ -1,467 +1,1099 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JieshuoForge — Architecture & Data Flow</title>
-<style>
-  :root{
-    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --line:#2d3543;
-    --ink:#e6edf3; --muted:#9aa7b4; --dim:#6e7d8c;
-    --cpu:#7c8a9a;        /* local python logic */
-    --ff:#2dd4bf;         /* ffmpeg/ffprobe */
-    --cv:#84cc16;         /* pyscenedetect / opencv */
-    --sql:#f0b429;        /* sqlite */
-    --llm:#a78bfa;        /* remote LLM api */
-    --gpu:#fb7185;        /* remote GPU services */
-    --out:#38bdf8;        /* outputs */
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;
-    font-size:15px;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1140px;margin:0 auto;padding:34px 20px 90px}
-  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
-  h2{font-size:20px;margin:46px 0 14px;letter-spacing:-.01em;padding-bottom:8px;border-bottom:1px solid var(--line)}
-  h3{font-size:15px;margin:22px 0 8px;color:var(--ink)}
-  p{margin:8px 0;color:var(--muted)}
-  code,.m{font-family:var(--mono);font-size:.86em}
-  .m{color:var(--ink);background:#21283400;padding:0}
-  .sub{color:var(--dim);font-size:13px;margin-top:2px}
-  a{color:#58a6ff;text-decoration:none}
-  .lead{font-size:16px;color:var(--ink);max-width:760px}
-  .lead b{color:#fff}
-  .tag{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:600;
-    padding:2px 7px;border-radius:5px;border:1px solid var(--line);white-space:nowrap;vertical-align:middle}
-  .t-cpu{color:var(--cpu);border-color:#3a4654}
-  .t-ff{color:var(--ff);border-color:#1d4d49}
-  .t-cv{color:var(--cv);border-color:#37491b}
-  .t-sql{color:var(--sql);border-color:#5a4a16}
-  .t-llm{color:var(--llm);border-color:#3f3470}
-  .t-gpu{color:var(--gpu);border-color:#6a2e38}
-  .t-out{color:var(--out);border-color:#1c4a63}
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yapper — Architecture & Data Flow</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel2: #1c2230;
+      --line: #2d3543;
+      --ink: #e6edf3;
+      --muted: #9aa7b4;
+      --dim: #6e7d8c;
+      --cpu: #7c8a9a;
+      /* local python logic */
+      --ff: #2dd4bf;
+      /* ffmpeg/ffprobe */
+      --cv: #84cc16;
+      /* pyscenedetect / opencv */
+      --sql: #f0b429;
+      /* sqlite */
+      --llm: #a78bfa;
+      /* remote LLM api */
+      --gpu: #fb7185;
+      /* remote GPU services */
+      --out: #38bdf8;
+      /* outputs */
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
 
-  .legend{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0}
-  .scrollx{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    * {
+      box-sizing: border-box
+    }
 
-  /* cards */
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:14px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-  .card .big{font-size:24px;font-weight:700;color:#fff;letter-spacing:-.02em}
-  .card .lbl{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
-  .card p{margin:8px 0 0;font-size:13px}
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.5;
+      font-size: 15px;
+      -webkit-font-smoothing: antialiased
+    }
 
-  /* topology */
-  .topo{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;min-width:860px;align-items:stretch}
-  .zone{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin:0 6px;position:relative}
-  .zone h4{margin:0 0 3px;font-size:14px;color:#fff}
-  .zone .where{font-size:12px;color:var(--dim);margin-bottom:12px;font-family:var(--mono)}
-  .node{border-radius:8px;padding:9px 11px;margin:8px 0;font-size:12.5px;border:1px solid var(--line);background:var(--panel2)}
-  .node b{color:#fff;font-weight:600}
-  .node .d{color:var(--muted);display:block;margin-top:2px;font-size:11.5px}
-  .zone-mac{border-color:#2b6b63}
-  .zone-gpu{border-color:#6a2e38}
-  .zone-llm{border-color:#3f3470}
-  .cross{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:0 2px}
-  .flow{font-size:11px;font-family:var(--mono);color:var(--muted);text-align:center;background:#10151d;
-    border:1px dashed var(--line);border-radius:8px;padding:7px 8px;width:100%}
-  .flow .ar{color:var(--ink);font-weight:700}
-  .flow .up{color:var(--ff)} .flow .dn{color:var(--gpu)}
-  .barrier{font-size:11px;color:var(--dim);text-align:center;margin-top:10px;font-style:italic}
+    .wrap {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 34px 20px 90px
+    }
 
-  /* pipeline rows */
-  .pipe{border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:760px}
-  .half{background:#10151d;padding:7px 14px;font-size:12px;font-weight:700;letter-spacing:.04em;
-    color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--line)}
-  .half .hx{color:var(--dim);font-weight:500;text-transform:none;letter-spacing:0}
-  .row{display:grid;grid-template-columns:54px 1fr 300px 130px;gap:12px;align-items:center;
-    padding:11px 14px;border-bottom:1px solid var(--line)}
-  .row:last-child{border-bottom:0}
-  .row:hover{background:#11161e}
-  .sid{font-family:var(--mono);font-size:12px;font-weight:700;color:#fff;background:var(--panel2);
-    border:1px solid var(--line);border-radius:7px;text-align:center;padding:7px 0}
-  .rn b{color:#fff;font-weight:600;font-size:14px}
-  .rn .dd{color:var(--muted);font-size:12.5px;margin-top:1px}
-  .io{font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.7}
-  .io .in{color:var(--dim)} .io .ot{color:var(--out)} .io .ar{color:var(--ink)}
-  .rc{text-align:right}
+    h1 {
+      font-size: 30px;
+      margin: 0 0 4px;
+      letter-spacing: -.02em
+    }
 
-  /* repo tree */
-  .tree{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
-  @media(max-width:760px){.tree{grid-template-columns:1fr}}
-  .fold{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-  .fold.full{grid-column:1/-1}
-  .fold h3{margin:0 0 2px;font-family:var(--mono);font-size:14px;color:#fff}
-  .fold .fp{font-size:12px;color:var(--muted);margin:0 0 10px}
-  .fl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px;padding:5px 0;border-top:1px solid #20262f}
-  .fl:first-of-type{border-top:0}
-  .fl .fn{font-family:var(--mono);color:#cdd9e5;white-space:nowrap}
-  .fl .fd{color:var(--muted)}
-  .fl .fd b{color:#dbe4ee;font-weight:600}
+    h2 {
+      font-size: 20px;
+      margin: 46px 0 14px;
+      letter-spacing: -.01em;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line)
+    }
 
-  /* dataflow table */
-  table{border-collapse:collapse;width:100%;min-width:720px;font-size:12.5px}
-  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600}
-  td .mono{font-family:var(--mono);font-size:11.5px;color:#cdd9e5}
-  td b{color:#fff}
+    h3 {
+      font-size: 15px;
+      margin: 22px 0 8px;
+      color: var(--ink)
+    }
 
-  .note{background:#1b1408;border:1px solid #5a4a16;border-radius:10px;padding:14px 16px;margin-top:14px}
-  .note h3{margin:0 0 6px;color:#f0b429}
-  .note ul{margin:6px 0 0;padding-left:20px}
-  .note li{color:#e8d9b0;margin:5px 0;font-size:13.5px}
-  .note li b{color:#fff}
-  .spine{background:linear-gradient(180deg,#13202b,#101820);border:1px solid #1c4a63;border-radius:12px;padding:16px 18px;margin-top:14px}
-  .spine h3{color:#38bdf8;margin-top:0}
-  .spine p{color:#bcd6e6}
-  .kbd{font-family:var(--mono);font-size:.85em;background:#0b1016;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#cdd9e5}
-  hr.sp{border:0;height:1px;background:var(--line);margin:0}
-  .foot{margin-top:50px;color:var(--dim);font-size:12px;text-align:center}
-</style>
+    p {
+      margin: 8px 0;
+      color: var(--muted)
+    }
+
+    code,
+    .m {
+      font-family: var(--mono);
+      font-size: .86em
+    }
+
+    .m {
+      color: var(--ink);
+      background: #21283400;
+      padding: 0
+    }
+
+    .sub {
+      color: var(--dim);
+      font-size: 13px;
+      margin-top: 2px
+    }
+
+    a {
+      color: #58a6ff;
+      text-decoration: none
+    }
+
+    .lead {
+      font-size: 16px;
+      color: var(--ink);
+      max-width: 760px
+    }
+
+    .lead b {
+      color: #fff
+    }
+
+    .tag {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 5px;
+      border: 1px solid var(--line);
+      white-space: nowrap;
+      vertical-align: middle
+    }
+
+    .t-cpu {
+      color: var(--cpu);
+      border-color: #3a4654
+    }
+
+    .t-ff {
+      color: var(--ff);
+      border-color: #1d4d49
+    }
+
+    .t-cv {
+      color: var(--cv);
+      border-color: #37491b
+    }
+
+    .t-sql {
+      color: var(--sql);
+      border-color: #5a4a16
+    }
+
+    .t-llm {
+      color: var(--llm);
+      border-color: #3f3470
+    }
+
+    .t-gpu {
+      color: var(--gpu);
+      border-color: #6a2e38
+    }
+
+    .t-out {
+      color: var(--out);
+      border-color: #1c4a63
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 14px 0 0
+    }
+
+    .scrollx {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch
+    }
+
+    /* cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 14px
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px
+    }
+
+    .card .big {
+      font-size: 24px;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -.02em
+    }
+
+    .card .lbl {
+      font-size: 12px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-top: 2px
+    }
+
+    .card p {
+      margin: 8px 0 0;
+      font-size: 13px
+    }
+
+    /* topology */
+    .topo {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0;
+      min-width: 860px;
+      align-items: stretch
+    }
+
+    .zone {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 0 6px;
+      position: relative
+    }
+
+    .zone h4 {
+      margin: 0 0 3px;
+      font-size: 14px;
+      color: #fff
+    }
+
+    .zone .where {
+      font-size: 12px;
+      color: var(--dim);
+      margin-bottom: 12px;
+      font-family: var(--mono)
+    }
+
+    .node {
+      border-radius: 8px;
+      padding: 9px 11px;
+      margin: 8px 0;
+      font-size: 12.5px;
+      border: 1px solid var(--line);
+      background: var(--panel2)
+    }
+
+    .node b {
+      color: #fff;
+      font-weight: 600
+    }
+
+    .node .d {
+      color: var(--muted);
+      display: block;
+      margin-top: 2px;
+      font-size: 11.5px
+    }
+
+    .zone-mac {
+      border-color: #2b6b63
+    }
+
+    .zone-gpu {
+      border-color: #6a2e38
+    }
+
+    .zone-llm {
+      border-color: #3f3470
+    }
+
+    .cross {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 18px;
+      padding: 0 2px
+    }
+
+    .flow {
+      font-size: 11px;
+      font-family: var(--mono);
+      color: var(--muted);
+      text-align: center;
+      background: #10151d;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 7px 8px;
+      width: 100%
+    }
+
+    .flow .ar {
+      color: var(--ink);
+      font-weight: 700
+    }
+
+    .flow .up {
+      color: var(--ff)
+    }
+
+    .flow .dn {
+      color: var(--gpu)
+    }
+
+    .barrier {
+      font-size: 11px;
+      color: var(--dim);
+      text-align: center;
+      margin-top: 10px;
+      font-style: italic
+    }
+
+    /* pipeline rows */
+    .pipe {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      min-width: 760px
+    }
+
+    .half {
+      background: #10151d;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: var(--muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .half .hx {
+      color: var(--dim);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 54px 1fr 300px 130px;
+      gap: 12px;
+      align-items: center;
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line)
+    }
+
+    .row:last-child {
+      border-bottom: 0
+    }
+
+    .row:hover {
+      background: #11161e
+    }
+
+    .sid {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      text-align: center;
+      padding: 7px 0
+    }
+
+    .rn b {
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px
+    }
+
+    .rn .dd {
+      color: var(--muted);
+      font-size: 12.5px;
+      margin-top: 1px
+    }
+
+    .io {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.7
+    }
+
+    .io .in {
+      color: var(--dim)
+    }
+
+    .io .ot {
+      color: var(--out)
+    }
+
+    .io .ar {
+      color: var(--ink)
+    }
+
+    .rc {
+      text-align: right
+    }
+
+    /* repo tree */
+    .tree {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 8px
+    }
+
+    @media(max-width:760px) {
+      .tree {
+        grid-template-columns: 1fr
+      }
+    }
+
+    .fold {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px
+    }
+
+    .fold.full {
+      grid-column: 1/-1
+    }
+
+    .fold h3 {
+      margin: 0 0 2px;
+      font-family: var(--mono);
+      font-size: 14px;
+      color: #fff
+    }
+
+    .fold .fp {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 10px
+    }
+
+    .fl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 12px;
+      font-size: 12.5px;
+      padding: 5px 0;
+      border-top: 1px solid #20262f
+    }
+
+    .fl:first-of-type {
+      border-top: 0
+    }
+
+    .fl .fn {
+      font-family: var(--mono);
+      color: #cdd9e5;
+      white-space: nowrap
+    }
+
+    .fl .fd {
+      color: var(--muted)
+    }
+
+    .fl .fd b {
+      color: #dbe4ee;
+      font-weight: 600
+    }
+
+    /* dataflow table */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 720px;
+      font-size: 12.5px
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top
+    }
+
+    th {
+      color: var(--dim);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      font-weight: 600
+    }
+
+    td .mono {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: #cdd9e5
+    }
+
+    td b {
+      color: #fff
+    }
+
+    .note {
+      background: #1b1408;
+      border: 1px solid #5a4a16;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-top: 14px
+    }
+
+    .note h3 {
+      margin: 0 0 6px;
+      color: #f0b429
+    }
+
+    .note ul {
+      margin: 6px 0 0;
+      padding-left: 20px
+    }
+
+    .note li {
+      color: #e8d9b0;
+      margin: 5px 0;
+      font-size: 13.5px
+    }
+
+    .note li b {
+      color: #fff
+    }
+
+    .spine {
+      background: linear-gradient(180deg, #13202b, #101820);
+      border: 1px solid #1c4a63;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-top: 14px
+    }
+
+    .spine h3 {
+      color: #38bdf8;
+      margin-top: 0
+    }
+
+    .spine p {
+      color: #bcd6e6
+    }
+
+    .kbd {
+      font-family: var(--mono);
+      font-size: .85em;
+      background: #0b1016;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: #cdd9e5
+    }
+
+    hr.sp {
+      border: 0;
+      height: 1px;
+      background: var(--line);
+      margin: 0
+    }
+
+    .foot {
+      margin-top: 50px;
+      color: var(--dim);
+      font-size: 12px;
+      text-align: center
+    }
+  </style>
 </head>
+
 <body>
 
-<div class="wrap">
+  <div class="wrap">
 
-  <h1>JieshuoForge — 电影解说 pipeline</h1>
-  <p class="sub">Architecture map &amp; infrastructure data flow · package <code>jieshuoforge</code></p>
-  <p class="lead" style="margin-top:14px">
-    Turns a <b>full-length movie</b> into a <b>~10–12 min Mandarin narrated recap</b> (Douyin/Kuaishou
-    电影解说 style): condensed footage from the film plays under an AI-generated voiceover that tells the
-    story. It runs as one CLI — <span class="kbd">uv run jieshuo run movie.mkv</span> — through
-    <b>13 deterministic, resumable stages</b>, each reading and writing one validated artifact.
-  </p>
+    <h1>Yapper — 电影解說 pipeline</h1>
+    <p class="sub">Architecture map &amp; infrastructure data flow · package <code>yapper</code></p>
+    <p class="lead" style="margin-top:14px">
+      Turns a <b>full-length movie</b> into a <b>~10–12 min Mandarin funny commentary</b> (Douyin/Kuaishou
+      电影解說 style): condensed footage from the film plays under an AI-generated voiceover that tells the
+      story. It runs as one CLI — <span class="kbd">uv run yap run movie.mkv</span> — through
+      <b>13 deterministic, resumable stages</b>, each reading and writing one validated artifact.
+    </p>
 
-  <div class="cards">
-    <div class="card"><div class="big">13</div><div class="lbl">pipeline stages</div>
-      <p>5 local "front half" + 8 "back half" (needs LLM + GPU TTS).</p></div>
-    <div class="card"><div class="big">3</div><div class="lbl">compute zones</div>
-      <p>Local Mac · remote 6× RTX 3090 box · cloud LLM API.</p></div>
-    <div class="card"><div class="big">clip_id</div><div class="lbl">the grounding spine</div>
-      <p>LLM references footage by stable id, never timestamps. Code resolves real times from SQLite.</p></div>
-    <div class="card"><div class="big">audio-driven</div><div class="lbl">editing rule</div>
-      <p>Footage is conformed to the <i>measured</i> voiceover duration — never time-stretched.</p></div>
+    <div class="cards">
+      <div class="card">
+        <div class="big">13</div>
+        <div class="lbl">pipeline stages</div>
+        <p>5 local "front half" + 8 "back half" (needs LLM + GPU TTS).</p>
+      </div>
+      <div class="card">
+        <div class="big">3</div>
+        <div class="lbl">compute zones</div>
+        <p>Local Mac · remote 6× RTX 3090 box · cloud LLM API.</p>
+      </div>
+      <div class="card">
+        <div class="big">clip_id</div>
+        <div class="lbl">the grounding spine</div>
+        <p>LLM references footage by stable id, never timestamps. Code resolves real times from SQLite.</p>
+      </div>
+      <div class="card">
+        <div class="big">audio-driven</div>
+        <div class="lbl">editing rule</div>
+        <p>Footage is conformed to the <i>measured</i> voiceover duration — never time-stretched.</p>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span class="tag t-cpu">local · Python</span>
+      <span class="tag t-ff">ffmpeg / ffprobe</span>
+      <span class="tag t-cv">PySceneDetect · OpenCV</span>
+      <span class="tag t-sql">SQLite</span>
+      <span class="tag t-llm">remote LLM API</span>
+      <span class="tag t-gpu">remote GPU service</span>
+      <span class="tag t-out">artifact output</span>
+    </div>
+
+    <!-- ============ TOPOLOGY ============ -->
+    <h2>1 · Infrastructure topology — where compute lives</h2>
+    <p>Three trust/compute zones. <b>The source film never leaves the Mac.</b> Only derived data crosses the
+      network: 16 kHz audio &amp; keyframe JPEGs &amp; text go out; transcripts, the script, and voiceover WAVs come
+      back.</p>
+
+    <div class="scrollx">
+      <div class="topo">
+
+        <div class="zone zone-mac">
+          <h4>🖥️ This Mac — orchestrator &amp; renderer</h4>
+          <div class="where">Python 3.12 · Typer CLI · vendored ffmpeg</div>
+          <div class="node"><b>yap CLI → pipeline.py</b><span class="d">Runs stages in order, caches each artifact,
+              resumes on re-run.</span></div>
+          <div class="node"><b>ffmpeg / ffprobe</b> <span class="tag t-ff">subprocess</span><span class="d">Probe, audio
+              extract, keyframe grab, loudnorm, render. Vendored static build with libass.</span></div>
+          <div class="node"><b>PySceneDetect + OpenCV</b> <span class="tag t-cv">CPU</span><span class="d">Shot
+              detection &amp; keyframe scoring.</span></div>
+          <div class="node"><b>clip_index.sqlite</b> <span class="tag t-sql">file</span><span class="d">The grounding
+              spine. clip_id → timecodes.</span></div>
+          <div class="node" style="border-color:#1c4a63"><b>🎬 recap_final.mp4</b> <span
+              class="tag t-out">output</span><span class="d">The deliverable, per movie.</span></div>
+        </div>
+
+        <div class="cross">
+          <div class="flow"><span class="up">▲ audio.wav (16k)</span> · keyframes · text<br><span class="ar">SSH
+              tunnel</span><br><span class="dn">▼ transcript · WAV bytes</span></div>
+          <div class="barrier">localhost:8900 / :8901<br>ssh -N -L … nlp</div>
+        </div>
+
+        <div class="zone zone-gpu" style="margin-right:0">
+          <h4>🛰️ GPU server — <span class="m">nlp-gpu-01</span></h4>
+          <div class="where">6× RTX 3090 · FastAPI · uvicorn</div>
+          <div class="node"><b>ASR :8900 — WhisperX</b> <span class="tag t-gpu">GPU</span><span class="d">POST
+              /transcribe · audio → word-timestamped segments (+ optional diarization). Fallback only.</span></div>
+          <div class="node"><b>TTS :8901 — CosyVoice2</b> <span class="tag t-gpu">GPU</span><span class="d">POST
+              /synthesize · text → cloned-narrator WAV (zero-shot, seed-pinned).</span></div>
+          <div class="node"><b>Demucs (out-of-band)</b><span class="d">scripts/separate_score.py over SSH →
+              dialogue-free score bed.</span></div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="scrollx" style="margin-top:10px">
+      <div style="min-width:560px;display:flex;gap:10px;align-items:stretch">
+        <div class="zone zone-llm" style="margin:0;flex:1">
+          <h4>☁️ Cloud LLM API — the "script brain"</h4>
+          <div class="where">OpenAI-compatible · default MiniMax-M3 @ api.minimax.io/v1 · swappable to self-hosted vLLM
+          </div>
+          <div class="node"><b>MAP pass (s06)</b> <span class="tag t-llm">vision</span><span class="d">Reads transcript
+              text + up to 180 keyframe images → structured beat sheet (Screenplay).</span></div>
+          <div class="node"><b>REDUCE pass (s07)</b> <span class="tag t-llm">text-only</span><span class="d">Reads beat
+              sheet → full Mandarin 解說 script (narration + playback lines).</span></div>
+          <div class="node" style="border-color:#5a4a16"><span class="d" style="color:#e8d9b0">⚠ Not Anthropic. Uses the
+              <b>OpenAI SDK</b> with <code>response_format=json_object</code> + an in-prompt JSON-schema directive.
+              README/some docstrings still say "Claude" — stale.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PIPELINE ============ -->
+    <h2>2 · The 13-stage pipeline — artifacts in / out</h2>
+    <p>Each stage is a pure function consuming one typed Pydantic artifact and producing another, cached under
+      <span class="m">artifacts/&lt;movie-slug&gt;/</span>. A stage is skipped if its artifact already exists (unless
+      <span class="kbd">--force</span>). <span class="kbd">--until &lt;stage&gt;</span> stops early. Timecodes are
+      always <b>seconds</b> (never frame numbers) so variable-frame-rate films don't drift.
+    </p>
+
+    <div class="scrollx">
+      <div class="pipe">
+
+        <div class="half">FRONT HALF — fully local <span class="hx">· ingest → audio → asr → shots → scenes · no network
+            needed (except optional ASR fallback)</span></div>
+
+        <div class="row">
+          <div class="sid">s00</div>
+          <div class="rn"><b>ingest</b>
+            <div class="dd">Probe container/streams: duration, fps, VFR flag, audio &amp; subtitle tracks.</div>
+          </div>
+          <div class="io"><span class="in">movie file</span> <span class="ar">→</span> <span
+              class="ot">probe.json</span></div>
+          <div class="rc"><span class="tag t-ff">ffprobe</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s01</div>
+          <div class="rn"><b>audio</b>
+            <div class="dd">Extract 16 kHz mono PCM WAV — exactly what ASR wants, keeps upload small.</div>
+          </div>
+          <div class="io"><span class="in">movie file</span> <span class="ar">→</span> <span class="ot">audio.wav</span>
+          </div>
+          <div class="rc"><span class="tag t-ff">ffmpeg</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s02</div>
+          <div class="rn"><b>asr</b>
+            <div class="dd">Dialogue transcript, cheapest-first: copy embedded text subtitles if present; else fall back
+              to remote WhisperX. Continues with empty dialogue if neither.</div>
+          </div>
+          <div class="io"><span class="in">probe.json · audio.wav</span> <span class="ar">→</span> <span
+              class="ot">transcript.json</span> <span class="in">(+ embedded.srt)</span></div>
+          <div class="rc"><span class="tag t-ff">ffmpeg</span> <span class="tag t-gpu">ASR*</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s03</div>
+          <div class="rn"><b>shots</b>
+            <div class="dd">Detect shot boundaries (AdaptiveDetector, robust to camera motion). Over-segmentation is
+              harmless — re-grouped next.</div>
+          </div>
+          <div class="io"><span class="in">movie file</span> <span class="ar">→</span> <span
+              class="ot">shots.json</span></div>
+          <div class="rc"><span class="tag t-cv">PySceneDetect</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s04</div>
+          <div class="rn"><b>scenes + keyframes</b> &nbsp;<span class="tag t-sql">spine</span>
+            <div class="dd">Group ~1–2.5k shots → ~300 narrative scenes. Pick sharpest/best-lit keyframe per scene
+              (Laplacian + LAB, z-scored). Assign stable <span class="m">clip_id</span>, attach dialogue. Persist the
+              clip index.</div>
+          </div>
+          <div class="io"><span class="in">shots · transcript · movie</span> <span class="ar">→</span> <span
+              class="ot">clip_index.sqlite</span> <span class="ot">keyframes/*.jpg</span></div>
+          <div class="rc"><span class="tag t-ff">ffmpeg</span> <span class="tag t-cv">cv2</span> <span
+              class="tag t-sql">db</span></div>
+        </div>
+
+        <div class="half">BACK HALF — needs LLM API + GPU TTS <span class="hx">· understand → script → budget → tts →
+            edl → subs → render</span></div>
+
+        <div class="row">
+          <div class="sid">s05</div>
+          <div class="rn"><b>context</b> <span class="tag t-cpu">in-memory helper</span>
+            <div class="dd">Not a cached stage. Reads the clip index in order → builds the clip_id-tagged multimodal
+              prompt prefix (text blocks + base64 keyframes) shared by s06/s07. Caps images at 180; text never dropped.
+            </div>
+          </div>
+          <div class="io"><span class="in">clip_index.sqlite · keyframes</span> <span class="ar">→</span> <span
+              class="ot">prompt blocks</span></div>
+          <div class="rc"><span class="tag t-cpu">CPU</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s06</div>
+          <div class="rn"><b>understand — MAP</b>
+            <div class="dd">Feed the whole indexed film (transcript + keyframes) to the model in one context →
+              structured plot beat sheet with clip_refs. Reasoning <span class="m">thinking=adaptive</span>.</div>
+          </div>
+          <div class="io"><span class="in">clip_index (+ images)</span> <span class="ar">→</span> <span
+              class="ot">screenplay.json</span></div>
+          <div class="rc"><span class="tag t-llm">LLM · vision</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s07</div>
+          <div class="rn"><b>script — REDUCE</b>
+            <div class="dd">Write the full Mandarin 解說 script from the beat sheet (text-only — images already encoded by
+              MAP). <span class="m">thinking=disabled</span> so the 32K budget goes to narration. Lines tagged narration
+              vs playback.</div>
+          </div>
+          <div class="io"><span class="in">screenplay.json · clip_index</span> <span class="ar">→</span> <span
+              class="ot">script.json</span></div>
+          <div class="rc"><span class="tag t-llm">LLM · text</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s08</div>
+          <div class="rn"><b>budget + grounding</b> <span class="tag t-cpu">no LLM</span>
+            <div class="dd">The safety net before spending TTS. Recompute spoken seconds from text; <b>validate every
+                clip_ref against SQLite</b> (rejects hallucinated ids); importance-aware trim to 600–720 s, protecting
+              climax, CTA &amp; playback moments.</div>
+          </div>
+          <div class="io"><span class="in">script.json · clip_index</span> <span class="ar">→</span> <span
+              class="ot">script_final.json</span></div>
+          <div class="rc"><span class="tag t-cpu">CPU</span> <span class="tag t-sql">db</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s09</div>
+          <div class="rn"><b>tts</b>
+            <div class="dd">One WAV per narration line via the cloned voice (seed-pinned so timbre never drifts).
+              Loudness-normalize locally, then <b>measure real duration</b> with ffprobe — the EDL needs measured, not
+              estimated, lengths. Playback lines skipped.</div>
+          </div>
+          <div class="io"><span class="in">script_final.json</span> <span class="ar">→</span> <span
+              class="ot">vo/*.wav</span> <span class="ot">vo_manifest.json</span></div>
+          <div class="rc"><span class="tag t-gpu">TTS</span> <span class="tag t-ff">ffmpeg</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s10</div>
+          <div class="rn"><b>edl — audio-driven</b>
+            <div class="dd">Build the edit-decision list. Narration: screen time = measured VO duration, split into a
+              montage over the line's clips. Playback: a 3–12 s window of original footage+audio, grounded to the quoted
+              transcript span. All timecodes resolved via clip_id.</div>
+          </div>
+          <div class="io"><span class="in">script_final · vo_manifest · transcript · clip_index</span> <span
+              class="ar">→</span> <span class="ot">edl.json</span></div>
+          <div class="rc"><span class="tag t-cpu">CPU</span> <span class="tag t-sql">db</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s11</div>
+          <div class="rn"><b>subs</b>
+            <div class="dd">Styled ASS subtitle file laid end-to-end on the voiceover timeline (Noto Sans CJK SC, opaque
+              box, bottom-center).</div>
+          </div>
+          <div class="io"><span class="in">edl.json</span> <span class="ar">→</span> <span class="ot">subs.ass</span>
+          </div>
+          <div class="rc"><span class="tag t-cpu">CPU</span></div>
+        </div>
+        <div class="row">
+          <div class="sid">s12</div>
+          <div class="rn"><b>render</b>
+            <div class="dd">Per segment: scale/pad to canonical frame, freeze-pad video to the VO duration, build audio
+              (playback=original; narration=score-bed mix <i>or</i> sidechain-duck the raw audio under the VO).
+              Stream-copy concat, then burn in subtitles via libass.</div>
+          </div>
+          <div class="io"><span class="in">edl · vo/*.wav · subs.ass · score bed</span> <span class="ar">→</span> <span
+              class="ot">recap_final.mp4</span></div>
+          <div class="rc"><span class="tag t-ff">ffmpeg · libx264</span></div>
+        </div>
+
+      </div>
+    </div>
+    <p class="sub">* s02 ASR hits the GPU server <b>only</b> when the film has no embedded text subtitle track and <span
+        class="m">ASR_SERVER_URL</span> is set/reachable.</p>
+
+    <!-- ============ DATA FLOW ============ -->
+    <h2>3 · Infrastructure data flow — what is sent where, for what</h2>
+    <p>The three external dependencies and exactly what crosses the boundary to each. Everything is stateless
+      request/response; the Mac holds all state in the per-movie artifacts directory.</p>
+
+    <div class="scrollx">
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Where / transport</th>
+            <th>Sent →</th>
+            <th>← Returned</th>
+            <th>Used by · purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>LLM API</b><br><span class="mono">MiniMax-M3</span><br><span class="tag t-llm">cloud</span></td>
+            <td><span class="mono">POST {LLM_BASE_URL}/chat/completions</span><br>HTTPS · OpenAI SDK<br>default <span
+                class="mono">api.minimax.io/v1</span></td>
+            <td>System style prompt + clip_id-tagged transcript text + (MAP only) ≤180 base64 keyframe JPEGs +
+              instruction + JSON-schema directive. <span class="mono">response_format=json_object</span>, <span
+                class="mono">thinking</span> via extra_body.</td>
+            <td>One JSON object — beat sheet (s06) or narration script (s07) — plus token usage. Client strips <span
+                class="mono">&lt;think&gt;</span> &amp; code fences before parsing.</td>
+            <td><b>s06 MAP</b> (understand plot) &amp; <b>s07 REDUCE</b> (write script). The cognition layer.</td>
+          </tr>
+          <tr>
+            <td><b>ASR service</b><br>WhisperX<br><span class="tag t-gpu">GPU :8900</span></td>
+            <td><span class="mono">POST {ASR_SERVER_URL}/transcribe</span><br>HTTP multipart · FastAPI<br>via SSH tunnel
+              to <span class="mono">localhost:8900</span></td>
+            <td>The 16 kHz mono <span class="mono">audio.wav</span> as a file upload + form fields <span
+                class="mono">language</span>, <span class="mono">diarize</span>.</td>
+            <td>JSON <span class="mono">{language, segments:[{start,end,text,speaker?,words[]}]}</span> — word-level
+              timestamps from forced alignment.</td>
+            <td><b>s02</b> fallback transcription when no embedded subtitles exist.</td>
+          </tr>
+          <tr>
+            <td><b>TTS service</b><br>CosyVoice2<br><span class="tag t-gpu">GPU :8901</span></td>
+            <td><span class="mono">POST {TTS_SERVER_URL}/synthesize</span><br>HTTP JSON → binary · FastAPI<br>via SSH
+              tunnel to <span class="mono">localhost:8901</span></td>
+            <td>JSON <span class="mono">{text, seed=42, ref_wav, ref_text}</span> — one request per narration line.
+              <span class="mono">ref_wav/ref_text</span> = the server-side cloned-narrator clip from <span
+                class="mono">[tts].reference_clip</span>.
+            </td>
+            <td><span class="mono">audio/wav</span> bytes — the synthesized line in the pinned cloned voice. No
+              timestamps (subs are timed from the EDL).</td>
+            <td><b>s09</b> per-line voiceover synthesis.</td>
+          </tr>
+          <tr>
+            <td><b>Demucs</b><br>(score bed)<br><span class="tag t-gpu">GPU · SSH</span></td>
+            <td><span class="mono">scripts/separate_score.py</span><br>scp + ssh · out-of-band</td>
+            <td>The movie's <span class="mono">audio.wav</span> uploaded via scp; runs <span class="mono">htdemucs
+                --two-stems=vocals</span> remotely.</td>
+            <td><span class="mono">no_vocals.wav</span> downloaded → <span class="mono">audio_novocals.wav</span>.</td>
+            <td>Optional dialogue-free score/SFX bed for s12 (<span class="mono">[audio].score_bed</span>).</td>
+          </tr>
+          <tr>
+            <td><b>ffmpeg / ffprobe</b><br><span class="tag t-ff">local</span></td>
+            <td>subprocess · vendored static build (<span class="mono">vendor/ffmpeg</span>, with libass)</td>
+            <td>Media paths + filter graphs (scale/pad/tpad, loudnorm, sidechaincompress, amix, alimiter, subtitles).
+            </td>
+            <td>WAV/SRT/JPEG/MP4 files + JSON metadata.</td>
+            <td>All local media I/O: s00, s01, s02, s04, s09, s12.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="spine">
+      <h3>★ The load-bearing idea — <span class="m">clip_ref</span> grounding</h3>
+      <p>The LLM <b>never invents timestamps</b>. Every scene gets a stable <span class="m">clip_id</span> (e.g. <span
+          class="m">clip_0042</span>) in the SQLite index built at s04. The model emits <span
+          class="m">clip_refs[]</span> per narration line; <span class="m">db.resolve_clip_refs()</span> is the single
+        choke point that turns ids into real timecodes — and <b>raises on any id it doesn't recognize</b>, so a
+        hallucinated reference is caught at s08 before a cent is spent on TTS. Editing is <b>audio-driven</b>: each
+        segment's screen time equals the <i>measured</i> voiceover duration, so footage is conformed to the narration,
+        never time-stretched to fit.</p>
+    </div>
+
+    <!-- ============ REPO MAP ============ -->
+    <h2>4 · Repository map — folders &amp; files</h2>
+    <p>The Python package <span class="m">yapper/</span> is the orchestrator; <span class="m">server/</span> is the
+      separately-deployed GPU services; <span class="m">scripts/</span>, <span class="m">config/</span>, <span
+        class="m">data/</span> are operator glue and assets.</p>
+
+    <div class="tree">
+
+      <div class="fold">
+        <h3>yapper/ <span style="color:var(--dim);font-weight:400">— core</span></h3>
+        <p class="fp">CLI, orchestrator, config, and the data layer.</p>
+        <div class="fl"><span class="fn">cli.py</span><span class="fd"><b>Typer entrypoint.</b> Commands <span
+              class="m">probe</span>, <span class="m">run</span> (front then back half), <span
+              class="m">stages</span>.</span></div>
+        <div class="fl"><span class="fn">pipeline.py</span><span class="fd"><b>The orchestrator.</b> Defines stage order
+            &amp; artifact caching; <span class="m">run_front_half</span> / <span class="m">run_back_half</span>; routes
+            ASR to the server on subtitle miss.</span></div>
+        <div class="fl"><span class="fn">config.py</span><span class="fd">Loads <span class="m">pipeline.toml</span> +
+            <span class="m">.env</span>; derives the per-movie <span class="m">artifacts/&lt;slug&gt;/</span> dir; env
+            accessors.</span></div>
+        <div class="fl"><span class="fn">schemas.py</span><span class="fd"><b>Pydantic contracts</b> for every artifact
+            (extra="forbid"), validated on load/save. Also emits JSON schemas for the LLM.</span></div>
+        <div class="fl"><span class="fn">db.py</span><span class="fd"><b>SQLite clip index.</b> Two tables (clips,
+            keyframes). <span class="m">resolve_clip_refs</span> is the grounding enforcer.</span></div>
+        <div class="fl"><span class="fn">textutil.py</span><span class="fd">Estimate Mandarin spoken duration (CJK chars
+            ÷ ~4 cps) for the runtime budget.</span></div>
+        <div class="fl"><span class="fn">__init__.py</span><span class="fd">Package marker (version only).</span></div>
+      </div>
+
+      <div class="fold">
+        <h3>yapper/stages/</h3>
+        <p class="fp">The 13 numbered stage functions — each consumes one artifact, returns the next.</p>
+        <div class="fl"><span class="fn">s00_ingest.py</span><span class="fd">ffprobe → ProbeManifest (duration, fps,
+            VFR, tracks).</span></div>
+        <div class="fl"><span class="fn">s01_audio.py</span><span class="fd">ffmpeg → 16 kHz mono WAV.</span></div>
+        <div class="fl"><span class="fn">s02_asr.py</span><span class="fd">Embedded-subtitle extract + SRT parse;
+            returns None to defer to server ASR.</span></div>
+        <div class="fl"><span class="fn">s03_shots.py</span><span class="fd">PySceneDetect AdaptiveDetector →
+            ShotList.</span></div>
+        <div class="fl"><span class="fn">s04_scenes_keyframes.py</span><span class="fd">Group shots→scenes, score &amp;
+            pick keyframes, write the SQLite index.</span></div>
+        <div class="fl"><span class="fn">s05_context.py</span><span class="fd">Build the clip_id-tagged multimodal
+            prompt prefix (shared by s06/s07).</span></div>
+        <div class="fl"><span class="fn">s06_understand.py</span><span class="fd">LLM MAP → Screenplay beat
+            sheet.</span></div>
+        <div class="fl"><span class="fn">s07_script.py</span><span class="fd">LLM REDUCE → Script (narration + playback
+            lines).</span></div>
+        <div class="fl"><span class="fn">s08_budget.py</span><span class="fd">Deterministic budget + clip_ref grounding
+            validation.</span></div>
+        <div class="fl"><span class="fn">s09_tts.py</span><span class="fd">Per-line TTS, loudnorm, measure duration →
+            VOManifest.</span></div>
+        <div class="fl"><span class="fn">s10_edl.py</span><span class="fd">Audio-driven EDL; resolves windows from clip
+            index + transcript.</span></div>
+        <div class="fl"><span class="fn">s11_subs.py</span><span class="fd">Styled ASS subtitles on the VO
+            timeline.</span></div>
+        <div class="fl"><span class="fn">s12_render.py</span><span class="fd">Drive ffmpeg: normalize → concat → burn
+            subs.</span></div>
+      </div>
+
+      <div class="fold">
+        <h3>yapper/ffmpeg/</h3>
+        <p class="fp">The single boundary to the ffmpeg/ffprobe binaries.</p>
+        <div class="fl"><span class="fn">run.py</span><span class="fd"><b>Binary resolver + logged subprocess
+              wrapper.</b> Prefers vendored static build (libass). <span class="m">has_filter()</span> checks
+            libass.</span></div>
+        <div class="fl"><span class="fn">graph.py</span><span class="fd"><b>EDL → filter_complex translator.</b> The
+            only place ffmpeg graphs are built: per-segment conform, audio duck/score-mix, concat, subtitle burn.</span>
+        </div>
+        <div class="fl"><span class="fn">probe.py</span><span class="fd">ffprobe wrappers: duration, fps parse, VFR
+            detection, text-subtitle classification.</span></div>
+      </div>
+
+      <div class="fold">
+        <h3>yapper/llm/</h3>
+        <p class="fp">The cognition layer — OpenAI-compatible client + Chinese prompt engineering.</p>
+        <div class="fl"><span class="fn">client.py</span><span class="fd"><b>LLMClient</b> over the OpenAI SDK. <span
+              class="m">complete_structured()</span>: json_object response, retries on bad JSON, strips reasoning
+            blocks. <span class="m">image_block/text_block</span> helpers.</span></div>
+        <div class="fl"><span class="fn">prompts.py</span><span class="fd">Mandarin <b>SYSTEM_STYLE</b> guide +
+            MAP/REDUCE instruction builders; injects few-shot tone from <span
+              class="m">data/refs/fewshot.txt</span>.</span></div>
+      </div>
+
+      <div class="fold">
+        <h3>yapper/server_clients/</h3>
+        <p class="fp">Thin httpx clients for the two GPU services.</p>
+        <div class="fl"><span class="fn">asr_client.py</span><span class="fd"><b>ASRClient</b> — multipart-uploads the
+            WAV to /transcribe, maps the JSON into a Transcript.</span></div>
+        <div class="fl"><span class="fn">tts_client.py</span><span class="fd"><b>TTSClient</b> — POSTs text to
+            /synthesize, writes returned WAV bytes to disk.</span></div>
+      </div>
+
+      <div class="fold">
+        <h3>server/ <span style="color:var(--gpu);font-weight:400">— deployed on the GPU box</span></h3>
+        <p class="fp">Two standalone FastAPI microservices (not part of the Mac install).</p>
+        <div class="fl"><span class="fn">asr_service.py</span><span class="fd"><b>WhisperX</b> /transcribe + /health.
+            Transcribe → forced-align → optional pyannote diarization.</span></div>
+        <div class="fl"><span class="fn">tts_service.py</span><span class="fd"><b>CosyVoice2</b> /synthesize + /health.
+            One pinned cloned voice; zero-shot, seed-locked.</span></div>
+        <div class="fl"><span class="fn">README_deploy.md</span><span class="fd">Runbook: venvs, model downloads, GPU
+            pinning, SSH tunnel, cuDNN gotchas.</span></div>
+        <div class="fl"><span class="fn">requirements.txt</span><span class="fd">Server deps (fastapi, whisperx;
+            CosyVoice2 is a source install).</span></div>
+      </div>
+
+      <div class="fold">
+        <h3>scripts/ &amp; config/</h3>
+        <p class="fp">Operator glue and the central tunables.</p>
+        <div class="fl"><span class="fn">build_narrator_ref.py</span><span class="fd">Auto-extract the cloned-narrator
+            reference clip + few-shot tone text from a reference 解說 video.</span></div>
+        <div class="fl"><span class="fn">separate_score.py</span><span class="fd">Run Demucs on the GPU box →
+            dialogue-free score bed.</span></div>
+        <div class="fl"><span class="fn">setup_check.sh</span><span class="fd">Preflight: libass, CJK font, disk, uv,
+            key, server /health.</span></div>
+        <div class="fl"><span class="fn">config/pipeline.toml</span><span class="fd"><b>All tunables</b> — code reads
+            here, never hard-codes. Sections map to stages.</span></div>
+        <div class="fl"><span class="fn">config/fonts/</span><span class="fd">Bundled Noto Sans CJK SC for subtitle
+            burn-in.</span></div>
+      </div>
+
+      <div class="fold">
+        <h3>data/ · artifacts/ · tests/</h3>
+        <p class="fp">Inputs, outputs, and verification.</p>
+        <div class="fl"><span class="fn">data/</span><span class="fd">Source films (<span class="m">*.webm</span>) and
+            <span class="m">refs/</span> (narrator clip, fewshot text, cached transcripts).</span></div>
+        <div class="fl"><span class="fn">artifacts/&lt;slug&gt;/</span><span class="fd">Per-movie working dir — every
+            stage's cached artifact &amp; the final <span class="m">recap_final.mp4</span>.</span></div>
+        <div class="fl"><span class="fn">tests/</span><span class="fd">pytest: context assembly/tags, clip_ref
+            grounding, EDL→ffmpeg, subtitles, runtime budget, server clients.</span></div>
+        <div class="fl"><span class="fn">vendor/ffmpeg/</span><span class="fd">Vendored static ffmpeg/ffprobe built with
+            libass (Homebrew's lacks it).</span></div>
+      </div>
+
+    </div>
+
+    <!-- ============ CAVEATS ============ -->
+    <h2>5 · Things worth knowing (verified against source)</h2>
+    <div class="note">
+      <h3>⚠ Stale documentation — the "Claude" references are wrong</h3>
+      <ul>
+        <li>The README says <b>"Claude Opus 4.8 (API)"</b> and a <span class="m">pipeline.py</span> docstring says
+          <b>ANTHROPIC_API_KEY</b>, but the code uses the <b>OpenAI SDK</b> against an OpenAI-compatible endpoint —
+          default <b>MiniMax-M3</b> at <span class="m">api.minimax.io/v1</span>. There is no <span
+            class="m">anthropic</span> dependency in <span class="m">pyproject.toml</span>.
+        </li>
+        <li>The real env var read by the back half is <b><span class="m">LLM_API_KEY</span></b> (via <span
+            class="m">require_env</span>). The names <span class="m">MINIMAX_API_KEY</span> (in <span
+            class="m">cli.py</span> error text &amp; a toml comment) and <span class="m">ANTHROPIC_API_KEY</span>
+          (docstring) are <b>not read anywhere</b>.</li>
+        <li>Structured output is NOT a native "Anthropic structured-output API" — it's <span
+            class="m">response_format={"type":"json_object"}</span> with the JSON schema <b>inlined into the prompt</b>
+          text; the client then strips <span class="m">&lt;think&gt;</span> blocks/fences and parses.</li>
+      </ul>
+    </div>
+    <div class="note" style="background:#0f1720;border-color:#1c4a63">
+      <h3 style="color:#38bdf8">ℹ Minor wiring details</h3>
+      <ul style="color:#bcd6e6">
+        <li><span class="m">--until</span> tokens are the short names: <span class="m">ingest, audio, asr, shots,
+            scenes, understand, script, budget, tts, edl, subs, render</span>.</li>
+        <li>s09 passes <span class="m">voice_id = [tts].provider</span> → resolves to <span
+            class="m">"cosyvoice2"</span> (provider name reused as voice id). <span class="m">speed</span> is never sent
+          (client default 1.0).</li>
+        <li>If <span class="m">ASR_SERVER_URL</span> is unset and a film has no embedded subs, the pipeline continues
+          <b>without dialogue</b> (empty transcript) rather than failing.
+        </li>
+        <li>Cached re-renders need no API key or TTS tunnel — the LLM client is built only when a script stage must
+          actually run.</li>
+      </ul>
+    </div>
+
+    <p class="foot">Generated from a full read of every source module · 13-agent analysis workflow + line-by-line
+      verification against <span class="m">pipeline.py</span>, <span class="m">config/pipeline.toml</span>, <span
+        class="m">.env.example</span>, the server clients &amp; services.</p>
+
   </div>
-
-  <div class="legend">
-    <span class="tag t-cpu">local · Python</span>
-    <span class="tag t-ff">ffmpeg / ffprobe</span>
-    <span class="tag t-cv">PySceneDetect · OpenCV</span>
-    <span class="tag t-sql">SQLite</span>
-    <span class="tag t-llm">remote LLM API</span>
-    <span class="tag t-gpu">remote GPU service</span>
-    <span class="tag t-out">artifact output</span>
-  </div>
-
-  <!-- ============ TOPOLOGY ============ -->
-  <h2>1 · Infrastructure topology — where compute lives</h2>
-  <p>Three trust/compute zones. <b>The source film never leaves the Mac.</b> Only derived data crosses the
-    network: 16 kHz audio &amp; keyframe JPEGs &amp; text go out; transcripts, the script, and voiceover WAVs come back.</p>
-
-  <div class="scrollx">
-  <div class="topo">
-
-    <div class="zone zone-mac">
-      <h4>🖥️ This Mac — orchestrator &amp; renderer</h4>
-      <div class="where">Python 3.12 · Typer CLI · vendored ffmpeg</div>
-      <div class="node"><b>jieshuo CLI → pipeline.py</b><span class="d">Runs stages in order, caches each artifact, resumes on re-run.</span></div>
-      <div class="node"><b>ffmpeg / ffprobe</b> <span class="tag t-ff">subprocess</span><span class="d">Probe, audio extract, keyframe grab, loudnorm, render. Vendored static build with libass.</span></div>
-      <div class="node"><b>PySceneDetect + OpenCV</b> <span class="tag t-cv">CPU</span><span class="d">Shot detection &amp; keyframe scoring.</span></div>
-      <div class="node"><b>clip_index.sqlite</b> <span class="tag t-sql">file</span><span class="d">The grounding spine. clip_id → timecodes.</span></div>
-      <div class="node" style="border-color:#1c4a63"><b>🎬 recap_final.mp4</b> <span class="tag t-out">output</span><span class="d">The deliverable, per movie.</span></div>
-    </div>
-
-    <div class="cross">
-      <div class="flow"><span class="up">▲ audio.wav (16k)</span> · keyframes · text<br><span class="ar">SSH tunnel</span><br><span class="dn">▼ transcript · WAV bytes</span></div>
-      <div class="barrier">localhost:8900 / :8901<br>ssh -N -L … nlp</div>
-    </div>
-
-    <div class="zone zone-gpu" style="margin-right:0">
-      <h4>🛰️ GPU server — <span class="m">nlp-gpu-01</span></h4>
-      <div class="where">6× RTX 3090 · FastAPI · uvicorn</div>
-      <div class="node"><b>ASR :8900 — WhisperX</b> <span class="tag t-gpu">GPU</span><span class="d">POST /transcribe · audio → word-timestamped segments (+ optional diarization). Fallback only.</span></div>
-      <div class="node"><b>TTS :8901 — CosyVoice2</b> <span class="tag t-gpu">GPU</span><span class="d">POST /synthesize · text → cloned-narrator WAV (zero-shot, seed-pinned).</span></div>
-      <div class="node"><b>Demucs (out-of-band)</b><span class="d">scripts/separate_score.py over SSH → dialogue-free score bed.</span></div>
-    </div>
-
-  </div>
-  </div>
-
-  <div class="scrollx" style="margin-top:10px">
-  <div style="min-width:560px;display:flex;gap:10px;align-items:stretch">
-    <div class="zone zone-llm" style="margin:0;flex:1">
-      <h4>☁️ Cloud LLM API — the "script brain"</h4>
-      <div class="where">OpenAI-compatible · default MiniMax-M3 @ api.minimax.io/v1 · swappable to self-hosted vLLM</div>
-      <div class="node"><b>MAP pass (s06)</b> <span class="tag t-llm">vision</span><span class="d">Reads transcript text + up to 180 keyframe images → structured beat sheet (Screenplay).</span></div>
-      <div class="node"><b>REDUCE pass (s07)</b> <span class="tag t-llm">text-only</span><span class="d">Reads beat sheet → full Mandarin 解说 script (narration + playback lines).</span></div>
-      <div class="node" style="border-color:#5a4a16"><span class="d" style="color:#e8d9b0">⚠ Not Anthropic. Uses the <b>OpenAI SDK</b> with <code>response_format=json_object</code> + an in-prompt JSON-schema directive. README/some docstrings still say "Claude" — stale.</span></div>
-    </div>
-  </div>
-  </div>
-
-  <!-- ============ PIPELINE ============ -->
-  <h2>2 · The 13-stage pipeline — artifacts in / out</h2>
-  <p>Each stage is a pure function consuming one typed Pydantic artifact and producing another, cached under
-    <span class="m">artifacts/&lt;movie-slug&gt;/</span>. A stage is skipped if its artifact already exists (unless
-    <span class="kbd">--force</span>). <span class="kbd">--until &lt;stage&gt;</span> stops early. Timecodes are
-    always <b>seconds</b> (never frame numbers) so variable-frame-rate films don't drift.</p>
-
-  <div class="scrollx">
-  <div class="pipe">
-
-    <div class="half">FRONT HALF — fully local <span class="hx">· ingest → audio → asr → shots → scenes · no network needed (except optional ASR fallback)</span></div>
-
-    <div class="row">
-      <div class="sid">s00</div>
-      <div class="rn"><b>ingest</b><div class="dd">Probe container/streams: duration, fps, VFR flag, audio &amp; subtitle tracks.</div></div>
-      <div class="io"><span class="in">movie file</span> <span class="ar">→</span> <span class="ot">probe.json</span></div>
-      <div class="rc"><span class="tag t-ff">ffprobe</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s01</div>
-      <div class="rn"><b>audio</b><div class="dd">Extract 16 kHz mono PCM WAV — exactly what ASR wants, keeps upload small.</div></div>
-      <div class="io"><span class="in">movie file</span> <span class="ar">→</span> <span class="ot">audio.wav</span></div>
-      <div class="rc"><span class="tag t-ff">ffmpeg</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s02</div>
-      <div class="rn"><b>asr</b><div class="dd">Dialogue transcript, cheapest-first: copy embedded text subtitles if present; else fall back to remote WhisperX. Continues with empty dialogue if neither.</div></div>
-      <div class="io"><span class="in">probe.json · audio.wav</span> <span class="ar">→</span> <span class="ot">transcript.json</span> <span class="in">(+ embedded.srt)</span></div>
-      <div class="rc"><span class="tag t-ff">ffmpeg</span> <span class="tag t-gpu">ASR*</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s03</div>
-      <div class="rn"><b>shots</b><div class="dd">Detect shot boundaries (AdaptiveDetector, robust to camera motion). Over-segmentation is harmless — re-grouped next.</div></div>
-      <div class="io"><span class="in">movie file</span> <span class="ar">→</span> <span class="ot">shots.json</span></div>
-      <div class="rc"><span class="tag t-cv">PySceneDetect</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s04</div>
-      <div class="rn"><b>scenes + keyframes</b> &nbsp;<span class="tag t-sql">spine</span><div class="dd">Group ~1–2.5k shots → ~300 narrative scenes. Pick sharpest/best-lit keyframe per scene (Laplacian + LAB, z-scored). Assign stable <span class="m">clip_id</span>, attach dialogue. Persist the clip index.</div></div>
-      <div class="io"><span class="in">shots · transcript · movie</span> <span class="ar">→</span> <span class="ot">clip_index.sqlite</span> <span class="ot">keyframes/*.jpg</span></div>
-      <div class="rc"><span class="tag t-ff">ffmpeg</span> <span class="tag t-cv">cv2</span> <span class="tag t-sql">db</span></div>
-    </div>
-
-    <div class="half">BACK HALF — needs LLM API + GPU TTS <span class="hx">· understand → script → budget → tts → edl → subs → render</span></div>
-
-    <div class="row">
-      <div class="sid">s05</div>
-      <div class="rn"><b>context</b> <span class="tag t-cpu">in-memory helper</span><div class="dd">Not a cached stage. Reads the clip index in order → builds the clip_id-tagged multimodal prompt prefix (text blocks + base64 keyframes) shared by s06/s07. Caps images at 180; text never dropped.</div></div>
-      <div class="io"><span class="in">clip_index.sqlite · keyframes</span> <span class="ar">→</span> <span class="ot">prompt blocks</span></div>
-      <div class="rc"><span class="tag t-cpu">CPU</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s06</div>
-      <div class="rn"><b>understand — MAP</b><div class="dd">Feed the whole indexed film (transcript + keyframes) to the model in one context → structured plot beat sheet with clip_refs. Reasoning <span class="m">thinking=adaptive</span>.</div></div>
-      <div class="io"><span class="in">clip_index (+ images)</span> <span class="ar">→</span> <span class="ot">screenplay.json</span></div>
-      <div class="rc"><span class="tag t-llm">LLM · vision</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s07</div>
-      <div class="rn"><b>script — REDUCE</b><div class="dd">Write the full Mandarin 解说 script from the beat sheet (text-only — images already encoded by MAP). <span class="m">thinking=disabled</span> so the 32K budget goes to narration. Lines tagged narration vs playback.</div></div>
-      <div class="io"><span class="in">screenplay.json · clip_index</span> <span class="ar">→</span> <span class="ot">script.json</span></div>
-      <div class="rc"><span class="tag t-llm">LLM · text</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s08</div>
-      <div class="rn"><b>budget + grounding</b> <span class="tag t-cpu">no LLM</span><div class="dd">The safety net before spending TTS. Recompute spoken seconds from text; <b>validate every clip_ref against SQLite</b> (rejects hallucinated ids); importance-aware trim to 600–720 s, protecting climax, CTA &amp; playback moments.</div></div>
-      <div class="io"><span class="in">script.json · clip_index</span> <span class="ar">→</span> <span class="ot">script_final.json</span></div>
-      <div class="rc"><span class="tag t-cpu">CPU</span> <span class="tag t-sql">db</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s09</div>
-      <div class="rn"><b>tts</b><div class="dd">One WAV per narration line via the cloned voice (seed-pinned so timbre never drifts). Loudness-normalize locally, then <b>measure real duration</b> with ffprobe — the EDL needs measured, not estimated, lengths. Playback lines skipped.</div></div>
-      <div class="io"><span class="in">script_final.json</span> <span class="ar">→</span> <span class="ot">vo/*.wav</span> <span class="ot">vo_manifest.json</span></div>
-      <div class="rc"><span class="tag t-gpu">TTS</span> <span class="tag t-ff">ffmpeg</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s10</div>
-      <div class="rn"><b>edl — audio-driven</b><div class="dd">Build the edit-decision list. Narration: screen time = measured VO duration, split into a montage over the line's clips. Playback: a 3–12 s window of original footage+audio, grounded to the quoted transcript span. All timecodes resolved via clip_id.</div></div>
-      <div class="io"><span class="in">script_final · vo_manifest · transcript · clip_index</span> <span class="ar">→</span> <span class="ot">edl.json</span></div>
-      <div class="rc"><span class="tag t-cpu">CPU</span> <span class="tag t-sql">db</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s11</div>
-      <div class="rn"><b>subs</b><div class="dd">Styled ASS subtitle file laid end-to-end on the voiceover timeline (Noto Sans CJK SC, opaque box, bottom-center).</div></div>
-      <div class="io"><span class="in">edl.json</span> <span class="ar">→</span> <span class="ot">subs.ass</span></div>
-      <div class="rc"><span class="tag t-cpu">CPU</span></div>
-    </div>
-    <div class="row">
-      <div class="sid">s12</div>
-      <div class="rn"><b>render</b><div class="dd">Per segment: scale/pad to canonical frame, freeze-pad video to the VO duration, build audio (playback=original; narration=score-bed mix <i>or</i> sidechain-duck the raw audio under the VO). Stream-copy concat, then burn in subtitles via libass.</div></div>
-      <div class="io"><span class="in">edl · vo/*.wav · subs.ass · score bed</span> <span class="ar">→</span> <span class="ot">recap_final.mp4</span></div>
-      <div class="rc"><span class="tag t-ff">ffmpeg · libx264</span></div>
-    </div>
-
-  </div>
-  </div>
-  <p class="sub">* s02 ASR hits the GPU server <b>only</b> when the film has no embedded text subtitle track and <span class="m">ASR_SERVER_URL</span> is set/reachable.</p>
-
-  <!-- ============ DATA FLOW ============ -->
-  <h2>3 · Infrastructure data flow — what is sent where, for what</h2>
-  <p>The three external dependencies and exactly what crosses the boundary to each. Everything is stateless
-    request/response; the Mac holds all state in the per-movie artifacts directory.</p>
-
-  <div class="scrollx">
-  <table>
-    <thead><tr><th>Service</th><th>Where / transport</th><th>Sent →</th><th>← Returned</th><th>Used by · purpose</th></tr></thead>
-    <tbody>
-      <tr>
-        <td><b>LLM API</b><br><span class="mono">MiniMax-M3</span><br><span class="tag t-llm">cloud</span></td>
-        <td><span class="mono">POST {LLM_BASE_URL}/chat/completions</span><br>HTTPS · OpenAI SDK<br>default <span class="mono">api.minimax.io/v1</span></td>
-        <td>System style prompt + clip_id-tagged transcript text + (MAP only) ≤180 base64 keyframe JPEGs + instruction + JSON-schema directive. <span class="mono">response_format=json_object</span>, <span class="mono">thinking</span> via extra_body.</td>
-        <td>One JSON object — beat sheet (s06) or narration script (s07) — plus token usage. Client strips <span class="mono">&lt;think&gt;</span> &amp; code fences before parsing.</td>
-        <td><b>s06 MAP</b> (understand plot) &amp; <b>s07 REDUCE</b> (write script). The cognition layer.</td>
-      </tr>
-      <tr>
-        <td><b>ASR service</b><br>WhisperX<br><span class="tag t-gpu">GPU :8900</span></td>
-        <td><span class="mono">POST {ASR_SERVER_URL}/transcribe</span><br>HTTP multipart · FastAPI<br>via SSH tunnel to <span class="mono">localhost:8900</span></td>
-        <td>The 16 kHz mono <span class="mono">audio.wav</span> as a file upload + form fields <span class="mono">language</span>, <span class="mono">diarize</span>.</td>
-        <td>JSON <span class="mono">{language, segments:[{start,end,text,speaker?,words[]}]}</span> — word-level timestamps from forced alignment.</td>
-        <td><b>s02</b> fallback transcription when no embedded subtitles exist.</td>
-      </tr>
-      <tr>
-        <td><b>TTS service</b><br>CosyVoice2<br><span class="tag t-gpu">GPU :8901</span></td>
-        <td><span class="mono">POST {TTS_SERVER_URL}/synthesize</span><br>HTTP JSON → binary · FastAPI<br>via SSH tunnel to <span class="mono">localhost:8901</span></td>
-        <td>JSON <span class="mono">{text, seed=42, ref_wav, ref_text}</span> — one request per narration line. <span class="mono">ref_wav/ref_text</span> = the server-side cloned-narrator clip from <span class="mono">[tts].reference_clip</span>.</td>
-        <td><span class="mono">audio/wav</span> bytes — the synthesized line in the pinned cloned voice. No timestamps (subs are timed from the EDL).</td>
-        <td><b>s09</b> per-line voiceover synthesis.</td>
-      </tr>
-      <tr>
-        <td><b>Demucs</b><br>(score bed)<br><span class="tag t-gpu">GPU · SSH</span></td>
-        <td><span class="mono">scripts/separate_score.py</span><br>scp + ssh · out-of-band</td>
-        <td>The movie's <span class="mono">audio.wav</span> uploaded via scp; runs <span class="mono">htdemucs --two-stems=vocals</span> remotely.</td>
-        <td><span class="mono">no_vocals.wav</span> downloaded → <span class="mono">audio_novocals.wav</span>.</td>
-        <td>Optional dialogue-free score/SFX bed for s12 (<span class="mono">[audio].score_bed</span>).</td>
-      </tr>
-      <tr>
-        <td><b>ffmpeg / ffprobe</b><br><span class="tag t-ff">local</span></td>
-        <td>subprocess · vendored static build (<span class="mono">vendor/ffmpeg</span>, with libass)</td>
-        <td>Media paths + filter graphs (scale/pad/tpad, loudnorm, sidechaincompress, amix, alimiter, subtitles).</td>
-        <td>WAV/SRT/JPEG/MP4 files + JSON metadata.</td>
-        <td>All local media I/O: s00, s01, s02, s04, s09, s12.</td>
-      </tr>
-    </tbody>
-  </table>
-  </div>
-
-  <div class="spine">
-    <h3>★ The load-bearing idea — <span class="m">clip_ref</span> grounding</h3>
-    <p>The LLM <b>never invents timestamps</b>. Every scene gets a stable <span class="m">clip_id</span> (e.g. <span class="m">clip_0042</span>) in the SQLite index built at s04. The model emits <span class="m">clip_refs[]</span> per narration line; <span class="m">db.resolve_clip_refs()</span> is the single choke point that turns ids into real timecodes — and <b>raises on any id it doesn't recognize</b>, so a hallucinated reference is caught at s08 before a cent is spent on TTS. Editing is <b>audio-driven</b>: each segment's screen time equals the <i>measured</i> voiceover duration, so footage is conformed to the narration, never time-stretched to fit.</p>
-  </div>
-
-  <!-- ============ REPO MAP ============ -->
-  <h2>4 · Repository map — folders &amp; files</h2>
-  <p>The Python package <span class="m">jieshuoforge/</span> is the orchestrator; <span class="m">server/</span> is the
-    separately-deployed GPU services; <span class="m">scripts/</span>, <span class="m">config/</span>, <span class="m">data/</span> are operator glue and assets.</p>
-
-  <div class="tree">
-
-    <div class="fold">
-      <h3>jieshuoforge/ <span style="color:var(--dim);font-weight:400">— core</span></h3>
-      <p class="fp">CLI, orchestrator, config, and the data layer.</p>
-      <div class="fl"><span class="fn">cli.py</span><span class="fd"><b>Typer entrypoint.</b> Commands <span class="m">probe</span>, <span class="m">run</span> (front then back half), <span class="m">stages</span>.</span></div>
-      <div class="fl"><span class="fn">pipeline.py</span><span class="fd"><b>The orchestrator.</b> Defines stage order &amp; artifact caching; <span class="m">run_front_half</span> / <span class="m">run_back_half</span>; routes ASR to the server on subtitle miss.</span></div>
-      <div class="fl"><span class="fn">config.py</span><span class="fd">Loads <span class="m">pipeline.toml</span> + <span class="m">.env</span>; derives the per-movie <span class="m">artifacts/&lt;slug&gt;/</span> dir; env accessors.</span></div>
-      <div class="fl"><span class="fn">schemas.py</span><span class="fd"><b>Pydantic contracts</b> for every artifact (extra="forbid"), validated on load/save. Also emits JSON schemas for the LLM.</span></div>
-      <div class="fl"><span class="fn">db.py</span><span class="fd"><b>SQLite clip index.</b> Two tables (clips, keyframes). <span class="m">resolve_clip_refs</span> is the grounding enforcer.</span></div>
-      <div class="fl"><span class="fn">textutil.py</span><span class="fd">Estimate Mandarin spoken duration (CJK chars ÷ ~4 cps) for the runtime budget.</span></div>
-      <div class="fl"><span class="fn">__init__.py</span><span class="fd">Package marker (version only).</span></div>
-    </div>
-
-    <div class="fold">
-      <h3>jieshuoforge/stages/</h3>
-      <p class="fp">The 13 numbered stage functions — each consumes one artifact, returns the next.</p>
-      <div class="fl"><span class="fn">s00_ingest.py</span><span class="fd">ffprobe → ProbeManifest (duration, fps, VFR, tracks).</span></div>
-      <div class="fl"><span class="fn">s01_audio.py</span><span class="fd">ffmpeg → 16 kHz mono WAV.</span></div>
-      <div class="fl"><span class="fn">s02_asr.py</span><span class="fd">Embedded-subtitle extract + SRT parse; returns None to defer to server ASR.</span></div>
-      <div class="fl"><span class="fn">s03_shots.py</span><span class="fd">PySceneDetect AdaptiveDetector → ShotList.</span></div>
-      <div class="fl"><span class="fn">s04_scenes_keyframes.py</span><span class="fd">Group shots→scenes, score &amp; pick keyframes, write the SQLite index.</span></div>
-      <div class="fl"><span class="fn">s05_context.py</span><span class="fd">Build the clip_id-tagged multimodal prompt prefix (shared by s06/s07).</span></div>
-      <div class="fl"><span class="fn">s06_understand.py</span><span class="fd">LLM MAP → Screenplay beat sheet.</span></div>
-      <div class="fl"><span class="fn">s07_script.py</span><span class="fd">LLM REDUCE → Script (narration + playback lines).</span></div>
-      <div class="fl"><span class="fn">s08_budget.py</span><span class="fd">Deterministic budget + clip_ref grounding validation.</span></div>
-      <div class="fl"><span class="fn">s09_tts.py</span><span class="fd">Per-line TTS, loudnorm, measure duration → VOManifest.</span></div>
-      <div class="fl"><span class="fn">s10_edl.py</span><span class="fd">Audio-driven EDL; resolves windows from clip index + transcript.</span></div>
-      <div class="fl"><span class="fn">s11_subs.py</span><span class="fd">Styled ASS subtitles on the VO timeline.</span></div>
-      <div class="fl"><span class="fn">s12_render.py</span><span class="fd">Drive ffmpeg: normalize → concat → burn subs.</span></div>
-    </div>
-
-    <div class="fold">
-      <h3>jieshuoforge/ffmpeg/</h3>
-      <p class="fp">The single boundary to the ffmpeg/ffprobe binaries.</p>
-      <div class="fl"><span class="fn">run.py</span><span class="fd"><b>Binary resolver + logged subprocess wrapper.</b> Prefers vendored static build (libass). <span class="m">has_filter()</span> checks libass.</span></div>
-      <div class="fl"><span class="fn">graph.py</span><span class="fd"><b>EDL → filter_complex translator.</b> The only place ffmpeg graphs are built: per-segment conform, audio duck/score-mix, concat, subtitle burn.</span></div>
-      <div class="fl"><span class="fn">probe.py</span><span class="fd">ffprobe wrappers: duration, fps parse, VFR detection, text-subtitle classification.</span></div>
-    </div>
-
-    <div class="fold">
-      <h3>jieshuoforge/llm/</h3>
-      <p class="fp">The cognition layer — OpenAI-compatible client + Chinese prompt engineering.</p>
-      <div class="fl"><span class="fn">client.py</span><span class="fd"><b>LLMClient</b> over the OpenAI SDK. <span class="m">complete_structured()</span>: json_object response, retries on bad JSON, strips reasoning blocks. <span class="m">image_block/text_block</span> helpers.</span></div>
-      <div class="fl"><span class="fn">prompts.py</span><span class="fd">Mandarin <b>SYSTEM_STYLE</b> guide + MAP/REDUCE instruction builders; injects few-shot tone from <span class="m">data/refs/fewshot.txt</span>.</span></div>
-    </div>
-
-    <div class="fold">
-      <h3>jieshuoforge/server_clients/</h3>
-      <p class="fp">Thin httpx clients for the two GPU services.</p>
-      <div class="fl"><span class="fn">asr_client.py</span><span class="fd"><b>ASRClient</b> — multipart-uploads the WAV to /transcribe, maps the JSON into a Transcript.</span></div>
-      <div class="fl"><span class="fn">tts_client.py</span><span class="fd"><b>TTSClient</b> — POSTs text to /synthesize, writes returned WAV bytes to disk.</span></div>
-    </div>
-
-    <div class="fold">
-      <h3>server/ <span style="color:var(--gpu);font-weight:400">— deployed on the GPU box</span></h3>
-      <p class="fp">Two standalone FastAPI microservices (not part of the Mac install).</p>
-      <div class="fl"><span class="fn">asr_service.py</span><span class="fd"><b>WhisperX</b> /transcribe + /health. Transcribe → forced-align → optional pyannote diarization.</span></div>
-      <div class="fl"><span class="fn">tts_service.py</span><span class="fd"><b>CosyVoice2</b> /synthesize + /health. One pinned cloned voice; zero-shot, seed-locked.</span></div>
-      <div class="fl"><span class="fn">README_deploy.md</span><span class="fd">Runbook: venvs, model downloads, GPU pinning, SSH tunnel, cuDNN gotchas.</span></div>
-      <div class="fl"><span class="fn">requirements.txt</span><span class="fd">Server deps (fastapi, whisperx; CosyVoice2 is a source install).</span></div>
-    </div>
-
-    <div class="fold">
-      <h3>scripts/ &amp; config/</h3>
-      <p class="fp">Operator glue and the central tunables.</p>
-      <div class="fl"><span class="fn">build_narrator_ref.py</span><span class="fd">Auto-extract the cloned-narrator reference clip + few-shot tone text from a reference 解说 video.</span></div>
-      <div class="fl"><span class="fn">separate_score.py</span><span class="fd">Run Demucs on the GPU box → dialogue-free score bed.</span></div>
-      <div class="fl"><span class="fn">setup_check.sh</span><span class="fd">Preflight: libass, CJK font, disk, uv, key, server /health.</span></div>
-      <div class="fl"><span class="fn">config/pipeline.toml</span><span class="fd"><b>All tunables</b> — code reads here, never hard-codes. Sections map to stages.</span></div>
-      <div class="fl"><span class="fn">config/fonts/</span><span class="fd">Bundled Noto Sans CJK SC for subtitle burn-in.</span></div>
-    </div>
-
-    <div class="fold">
-      <h3>data/ · artifacts/ · tests/</h3>
-      <p class="fp">Inputs, outputs, and verification.</p>
-      <div class="fl"><span class="fn">data/</span><span class="fd">Source films (<span class="m">*.webm</span>) and <span class="m">refs/</span> (narrator clip, fewshot text, cached transcripts).</span></div>
-      <div class="fl"><span class="fn">artifacts/&lt;slug&gt;/</span><span class="fd">Per-movie working dir — every stage's cached artifact &amp; the final <span class="m">recap_final.mp4</span>.</span></div>
-      <div class="fl"><span class="fn">tests/</span><span class="fd">pytest: context assembly/tags, clip_ref grounding, EDL→ffmpeg, subtitles, runtime budget, server clients.</span></div>
-      <div class="fl"><span class="fn">vendor/ffmpeg/</span><span class="fd">Vendored static ffmpeg/ffprobe built with libass (Homebrew's lacks it).</span></div>
-    </div>
-
-  </div>
-
-  <!-- ============ CAVEATS ============ -->
-  <h2>5 · Things worth knowing (verified against source)</h2>
-  <div class="note">
-    <h3>⚠ Stale documentation — the "Claude" references are wrong</h3>
-    <ul>
-      <li>The README says <b>"Claude Opus 4.8 (API)"</b> and a <span class="m">pipeline.py</span> docstring says <b>ANTHROPIC_API_KEY</b>, but the code uses the <b>OpenAI SDK</b> against an OpenAI-compatible endpoint — default <b>MiniMax-M3</b> at <span class="m">api.minimax.io/v1</span>. There is no <span class="m">anthropic</span> dependency in <span class="m">pyproject.toml</span>.</li>
-      <li>The real env var read by the back half is <b><span class="m">LLM_API_KEY</span></b> (via <span class="m">require_env</span>). The names <span class="m">MINIMAX_API_KEY</span> (in <span class="m">cli.py</span> error text &amp; a toml comment) and <span class="m">ANTHROPIC_API_KEY</span> (docstring) are <b>not read anywhere</b>.</li>
-      <li>Structured output is NOT a native "Anthropic structured-output API" — it's <span class="m">response_format={"type":"json_object"}</span> with the JSON schema <b>inlined into the prompt</b> text; the client then strips <span class="m">&lt;think&gt;</span> blocks/fences and parses.</li>
-    </ul>
-  </div>
-  <div class="note" style="background:#0f1720;border-color:#1c4a63">
-    <h3 style="color:#38bdf8">ℹ Minor wiring details</h3>
-    <ul style="color:#bcd6e6">
-      <li><span class="m">--until</span> tokens are the short names: <span class="m">ingest, audio, asr, shots, scenes, understand, script, budget, tts, edl, subs, render</span>.</li>
-      <li>s09 passes <span class="m">voice_id = [tts].provider</span> → resolves to <span class="m">"cosyvoice2"</span> (provider name reused as voice id). <span class="m">speed</span> is never sent (client default 1.0).</li>
-      <li>If <span class="m">ASR_SERVER_URL</span> is unset and a film has no embedded subs, the pipeline continues <b>without dialogue</b> (empty transcript) rather than failing.</li>
-      <li>Cached re-renders need no API key or TTS tunnel — the LLM client is built only when a script stage must actually run.</li>
-    </ul>
-  </div>
-
-  <p class="foot">Generated from a full read of every source module · 13-agent analysis workflow + line-by-line verification against <span class="m">pipeline.py</span>, <span class="m">config/pipeline.toml</span>, <span class="m">.env.example</span>, the server clients &amp; services.</p>
-
-</div>
 </body>
+
 </html>

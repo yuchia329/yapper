@@ -1,7 +1,7 @@
 """CosyVoice2 TTS service — gRPC (deploy on the GPU server, one RTX 3090).
 
 Holds ONE pinned, cloned narrator voice (zero-shot from a reference clip + transcript,
-set via env at startup). Implements jieshuorpc.Tts/Synthesize (unary request ->
+set via env at startup). Implements yapper_rpc.Tts/Synthesize (unary request ->
 server-streaming WAV byte chunks).
 
 Run:
@@ -10,7 +10,7 @@ Run:
   TTS_GRPC_PORT=50052 TTS_METRICS_PORT=9102 python tts_service.py
 
 Needs (in the TTS venv): grpcio, grpcio-health-checking, protobuf, prometheus-client,
-CosyVoice2 (source install) — plus the `jieshuorpc` package on PYTHONPATH.
+CosyVoice2 (source install) — plus the `yapper_rpc` package on PYTHONPATH.
 See README_deploy.md for the CosyVoice2 install + model download.
 """
 
@@ -30,7 +30,7 @@ from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 # CosyVoice2 is a SOURCE checkout (not pip-installed) and expects its bundled Matcha-TTS
 # submodule on sys.path too. Resolve the repo (default <repo>/CosyVoice, two levels up from
 # this file) and prepend both, so `import cosyvoice` / `import matcha` work regardless of how
-# PYTHONPATH is set — gpud only guarantees jieshuorpc is importable. Override via COSYVOICE_ROOT.
+# PYTHONPATH is set — gpud only guarantees yapper_rpc is importable. Override via COSYVOICE_ROOT.
 _COSYVOICE = os.environ.get(
     "COSYVOICE_ROOT",
     os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "CosyVoice"),
@@ -42,7 +42,7 @@ for _p in (_COSYVOICE, os.path.join(_COSYVOICE, "third_party", "Matcha-TTS")):
 from cosyvoice.cli.cosyvoice import CosyVoice2 as _CosyVoice  # noqa: E402
 from cosyvoice.utils.common import set_all_random_seed  # noqa: E402
 
-from jieshuorpc import tts_pb2, tts_pb2_grpc
+from yapper_rpc import tts_pb2, tts_pb2_grpc
 
 from _metrics import TTS_AUDIO_SECONDS, TTS_LINES, MetricsInterceptor, start_metrics_server
 
@@ -96,7 +96,7 @@ def serve() -> None:
     tts_pb2_grpc.add_TtsServicer_to_server(TtsServicer(), server)
     health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
-    health_servicer.set("jieshuorpc.Tts", health_pb2.HealthCheckResponse.SERVING)
+    health_servicer.set("yapper_rpc.Tts", health_pb2.HealthCheckResponse.SERVING)
     health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
 
     start_metrics_server("tts", METRICS_PORT)

@@ -2,15 +2,15 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # PRODUCTION on the yuchia.dev k3s box (single-node, ARM64, Traefik ingress, AWS S3).
-# Tuned for THIS cluster (not generic): namespace `recap`, Traefik host-routing (no
+# Tuned for THIS cluster (not generic): namespace `yapper`, Traefik host-routing (no
 # cert-manager — TLS is terminated at Cloudflare's edge), one combined Celery worker
 # (the box is small + GPU is on-demand), and a standalone gpu-tunnel Deployment that SSH-
 # forwards gpud (mirrors the working video-search gpu-tunnel) instead of per-worker sidecars.
 #
-# Secrets (jieshuo-secrets, gpu-ssh-key) are NOT emitted here — Terraform owns them
+# Secrets (yapper-secrets, gpu-ssh-key) are NOT emitted here — Terraform owns them
 # (deploy/terraform). Apply via Terraform (kustomization provider) or directly:
 #   kubectl apply -k deploy/k8s/overlays/prod        # after TF has created the secrets
-namespace: recap
+namespace: yapper
 
 resources:
   - ../../base
@@ -19,7 +19,7 @@ resources:
 
 patches:
   - path: patch-config.yaml        # S3 prod bucket, gpud target, GPU box host, forwarded-proto, cookie
-  - path: patch-ingress.yaml       # Traefik + host recap.yuchia.dev (drops the nginx annotations)
+  - path: patch-ingress.yaml       # Traefik + host yapper.yuchia.dev (drops the nginx annotations)
   - path: patch-api.yaml           # replicas 1 + right-sized for the shared 2 vCPU / 8 GB box
   - path: patch-workers.yaml       # repurpose worker-cpu as the single combined worker; bound scratch
 
@@ -55,13 +55,13 @@ patches:
       kind: Deployment
       metadata: {name: beat}
 
-  # Drop the placeholder Secrets — Terraform owns the real jieshuo-secrets + gpu-ssh-key.
-  - target: {version: v1, kind: Secret, name: jieshuo-secrets}
+  # Drop the placeholder Secrets — Terraform owns the real yapper-secrets + gpu-ssh-key.
+  - target: {version: v1, kind: Secret, name: yapper-secrets}
     patch: |
       $patch: delete
       apiVersion: v1
       kind: Secret
-      metadata: {name: jieshuo-secrets}
+      metadata: {name: yapper-secrets}
   - target: {version: v1, kind: Secret, name: gpu-ssh-key}
     patch: |
       $patch: delete
@@ -70,6 +70,6 @@ patches:
       metadata: {name: gpu-ssh-key}
 
 images:
-  - name: jieshuoforge
-    newName: docker.io/yuchia329/recap                 # built on the box + imported into k3s (scripts/build_and_load.sh)
-    newTag: latest                 # override with the git sha at apply time
+  - name: yapper
+    newName: docker.io/yuchia329/yapper                 # pushed to Docker Hub (scripts/build_and_push.sh) OR side-loaded into k3s (scripts/build_and_load.sh)
+    newTag: latest                 # override with the git sha at apply time (TF_VAR_image_tag)

@@ -1,56 +1,194 @@
 {
-  "uid": "jieshuo-cost",
-  "title": "解说 · Cost ($3 cap)",
-  "tags": ["jieshuo", "cost"],
+  "uid": "yapper-cost",
+  "title": "解說 · Cost ($3 cap)",
+  "tags": [
+    "yapper",
+    "cost"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "refresh": "30s",
-  "time": {"from": "now-7d", "to": "now"},
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
   "panels": [
     {
-      "type": "gauge", "title": "Spent vs cap", "id": 1,
-      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 3, "min": 0,
-        "max": 3,
-        "thresholds": {"mode": "absolute", "steps": [
-          {"color": "green", "value": null}, {"color": "orange", "value": 2.4}, {"color": "red", "value": 2.7}]}}},
-      "targets": [{"expr": "jieshuo_llm_cost_usd_total", "refId": "A"}]
-    },
-    {
-      "type": "stat", "title": "Remaining", "id": 2,
-      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 3}},
-      "targets": [{"expr": "jieshuo_llm_budget_remaining_usd", "refId": "A"}]
-    },
-    {
-      "type": "stat", "title": "Reserved (in-flight)", "id": 3,
-      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 3}},
-      "targets": [{"expr": "jieshuo_llm_budget_reserved_usd", "refId": "A"}]
-    },
-    {
-      "type": "stat", "title": "Per-run estimate", "id": 4,
-      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 4}},
-      "targets": [{"expr": "jieshuo_llm_budget_cap_usd - jieshuo_llm_budget_cap_usd + 0", "refId": "A"}]
-    },
-    {
-      "type": "table", "title": "LLM cost by run", "id": 5,
-      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 8},
-      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 4}},
-      "targets": [{"expr": "jieshuo_run_llm_cost_usd", "format": "table", "instant": true, "legendFormat": "{{run_id}}", "refId": "A"}]
-    },
-    {
-      "type": "timeseries", "title": "Output recap length (s)", "id": 6,
-      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8},
-      "fieldConfig": {"defaults": {"unit": "s"}},
-      "targets": [{"expr": "jieshuo_output_duration_seconds", "legendFormat": "{{lang}}", "refId": "A"}]
-    },
-    {
-      "type": "timeseries", "title": "Tokens per run (in/out)", "id": 7,
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 17},
+      "type": "gauge",
+      "title": "Spent vs cap",
+      "id": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 3,
+          "min": 0,
+          "max": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 2.4
+              },
+              {
+                "color": "red",
+                "value": 2.7
+              }
+            ]
+          }
+        }
+      },
       "targets": [
-        {"expr": "sum(jieshuo_llm_tokens) by (direction)", "legendFormat": "{{direction}}", "refId": "A"}
+        {
+          "expr": "yapper_llm_cost_usd_total",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Remaining",
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 3
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_llm_budget_remaining_usd",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Reserved (in-flight)",
+      "id": 3,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 3
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_llm_budget_reserved_usd",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Per-run estimate",
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_llm_budget_cap_usd - yapper_llm_budget_cap_usd + 0",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "LLM cost by run",
+      "id": 5,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_run_llm_cost_usd",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{run_id}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Output length (s)",
+      "id": 6,
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_output_duration_seconds",
+          "legendFormat": "{{lang}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Tokens per run (in/out)",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "targets": [
+        {
+          "expr": "sum(yapper_llm_tokens) by (direction)",
+          "legendFormat": "{{direction}}",
+          "refId": "A"
+        }
       ]
     }
   ]

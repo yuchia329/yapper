@@ -1,7 +1,7 @@
 [project]
-name = "jieshuoforge"
+name = "yapper"
 version = "0.1.0"
-description = "Automated movie -> 10-15 min Mandarin narrated recap (电影解说) pipeline"
+description = "Yapper — automated funny Mandarin commentary (短片解說) for movies and short clips"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -40,7 +40,7 @@ web = [
 ]
 
 [project.scripts]
-jieshuo = "jieshuoforge.cli:app"
+yap = "yapper.cli:app"
 
 [dependency-groups]
 dev = [
@@ -56,7 +56,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["jieshuoforge", "jieshuoforge_web", "jieshuorpc"]
+packages = ["yapper", "yapper_web", "yapper_rpc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

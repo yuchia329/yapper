@@ -2,11 +2,11 @@
 variable "kubeconfig_path" {
   description = "Path to a kubeconfig pointing at the k3s API (e.g. via the ssh -L 6443 tunnel)."
   type        = string
-  default     = "~/.kube/recap-k3s.yaml"
+  default     = "~/.kube/yapper-k3s.yaml"
 }
 
 variable "image_tag" {
-  description = "recap image tag loaded into k3s by scripts/build_and_load.sh (e.g. the git short sha). Substituted into the kustomize-rendered manifests."
+  description = "yapper image tag loaded into k3s by scripts/build_and_load.sh (e.g. the git short sha). Substituted into the kustomize-rendered manifests."
   type        = string
   default     = "latest"
 }
@@ -18,7 +18,7 @@ variable "aws_region" {
 }
 
 variable "s3_bucket" {
-  description = "Bucket for movie inputs + recap outputs (must match S3_BUCKET in the overlay)."
+  description = "Bucket for movie inputs + yapper outputs (must match S3_BUCKET in the overlay)."
   type        = string
   default     = "recap-artifacts-prod"
 }
@@ -42,7 +42,7 @@ variable "cloudflare_zone_id" {
 }
 
 variable "ec2_public_ip" {
-  description = "Public IP the recap.yuchia.dev record points at."
+  description = "Public IP the yapper.yuchia.dev record points at."
   type        = string
   default     = "34.195.244.172"
 }

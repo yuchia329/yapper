@@ -1,16 +1,16 @@
 # Terraform owns the namespace + the Secrets the kustomize overlay deliberately omits, so
 # real credentials never live in the repo.
-resource "kubernetes_namespace" "recap" {
+resource "kubernetes_namespace" "yapper" {
   metadata {
-    name   = "recap"
-    labels = { "app.kubernetes.io/part-of" = "jieshuo" }
+    name   = "yapper"
+    labels = { "app.kubernetes.io/part-of" = "yapper" }
   }
 }
 
 resource "kubernetes_secret" "app" {
   metadata {
-    name      = "jieshuo-secrets"
-    namespace = kubernetes_namespace.recap.metadata[0].name
+    name      = "yapper-secrets"
+    namespace = kubernetes_namespace.yapper.metadata[0].name
   }
   type = "Opaque"
   data = {
@@ -18,8 +18,8 @@ resource "kubernetes_secret" "app" {
     SESSION_SECRET        = var.session_secret
     POSTGRES_PASSWORD     = var.postgres_password
     DATABASE_URL          = "postgresql+psycopg://jieshuo:${var.postgres_password}@postgres:5432/jieshuo"
-    AWS_ACCESS_KEY_ID     = aws_iam_access_key.recap.id
-    AWS_SECRET_ACCESS_KEY = aws_iam_access_key.recap.secret
+    AWS_ACCESS_KEY_ID     = aws_iam_access_key.yapper.id
+    AWS_SECRET_ACCESS_KEY = aws_iam_access_key.yapper.secret
   }
 }
 
@@ -27,7 +27,7 @@ resource "kubernetes_secret" "app" {
 resource "kubernetes_secret" "gpu_ssh" {
   metadata {
     name      = "gpu-ssh-key"
-    namespace = kubernetes_namespace.recap.metadata[0].name
+    namespace = kubernetes_namespace.yapper.metadata[0].name
   }
   type = "Opaque"
   data = {

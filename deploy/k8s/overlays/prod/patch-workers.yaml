@@ -11,7 +11,7 @@ spec:
     spec:
       containers:
         - name: worker
-          command: ["celery", "-A", "jieshuoforge_web.tasks", "worker",
+          command: ["celery", "-A", "yapper_web.tasks", "worker",
                     "-Q", "cpu,asr,tts,llm,render", "-n", "worker@%h", "--concurrency", "2", "-l", "info"]
           resources:
             requests: {cpu: "250m", memory: "768Mi"}

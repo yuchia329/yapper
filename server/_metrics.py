@@ -14,17 +14,17 @@ import grpc
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 
 _REQ = Histogram(
-    "jieshuo_gpu_request_seconds", "GPU RPC latency", ["service", "method"],
+    "yapper_gpu_request_seconds", "GPU RPC latency", ["service", "method"],
     buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600),
 )
-_INFLIGHT = Gauge("jieshuo_gpu_inflight_requests", "In-flight RPCs", ["service", "method"])
-_UP = Gauge("jieshuo_gpu_service_up", "Service liveness (1=up)", ["service"])
-ERRORS = Counter("jieshuo_gpu_errors_total", "RPC errors", ["service", "method"])
+_INFLIGHT = Gauge("yapper_gpu_inflight_requests", "In-flight RPCs", ["service", "method"])
+_UP = Gauge("yapper_gpu_service_up", "Service liveness (1=up)", ["service"])
+ERRORS = Counter("yapper_gpu_errors_total", "RPC errors", ["service", "method"])
 
 # service-specific
-TTS_LINES = Counter("jieshuo_tts_lines_synthesized_total", "Voiceover lines synthesized", ["service"])
-TTS_AUDIO_SECONDS = Counter("jieshuo_tts_audio_seconds_total", "Seconds of audio produced", ["service"])
-ASR_SEGMENTS = Counter("jieshuo_asr_segments_total", "Transcript segments produced", ["service"])
+TTS_LINES = Counter("yapper_tts_lines_synthesized_total", "Voiceover lines synthesized", ["service"])
+TTS_AUDIO_SECONDS = Counter("yapper_tts_audio_seconds_total", "Seconds of audio produced", ["service"])
+ASR_SEGMENTS = Counter("yapper_asr_segments_total", "Transcript segments produced", ["service"])
 
 
 def _short(method: str) -> str:

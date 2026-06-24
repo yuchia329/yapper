@@ -10,7 +10,7 @@ x-app: &app
   build:
     context: ../..
     dockerfile: deploy/Dockerfile
-  image: jieshuoforge:latest
+  image: yapper:latest
   restart: unless-stopped
   volumes:
     - work:/scratch/work
@@ -18,13 +18,13 @@ x-app: &app
 services:
   api:
     <<: *app
-    command: gunicorn jieshuoforge_web.api:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --workers 2 --timeout 120
+    command: gunicorn yapper_web.api:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 --workers 2 --timeout 120
     expose: ["8000"]
     depends_on: [redis, postgres]
 
   worker-cpu:
     <<: *app
-    command: celery -A jieshuoforge_web.tasks worker -Q cpu -n cpu@%h --concurrency 2 -l info
+    command: celery -A yapper_web.tasks worker -Q cpu -n cpu@%h --concurrency 2 -l info
     depends_on: [redis, postgres]
 
   # ASR and TTS are separate queues so they overlap. Concurrency 3 = up to 3 of each in
@@ -32,27 +32,27 @@ services:
   # server) the per-task Redis lock still serializes to one, so 3 is safe either way.
   worker-asr:
     <<: *app
-    command: celery -A jieshuoforge_web.tasks worker -Q asr -n asr@%h --concurrency 3 -l info
+    command: celery -A yapper_web.tasks worker -Q asr -n asr@%h --concurrency 3 -l info
     depends_on: [redis, postgres]
 
   worker-tts:
     <<: *app
-    command: celery -A jieshuoforge_web.tasks worker -Q tts -n tts@%h --concurrency 3 -l info
+    command: celery -A yapper_web.tasks worker -Q tts -n tts@%h --concurrency 3 -l info
     depends_on: [redis, postgres]
 
   worker-llm:
     <<: *app
-    command: celery -A jieshuoforge_web.tasks worker -Q llm -n llm@%h --concurrency 2 -l info
+    command: celery -A yapper_web.tasks worker -Q llm -n llm@%h --concurrency 2 -l info
     depends_on: [redis, postgres]
 
   worker-render:
     <<: *app
-    command: celery -A jieshuoforge_web.tasks worker -Q render -n render@%h --concurrency 2 -l info
+    command: celery -A yapper_web.tasks worker -Q render -n render@%h --concurrency 2 -l info
     depends_on: [redis, postgres]
 
   beat:
     <<: *app
-    command: celery -A jieshuoforge_web.tasks beat -l info
+    command: celery -A yapper_web.tasks beat -l info
     depends_on: [redis]
 
   nginx:

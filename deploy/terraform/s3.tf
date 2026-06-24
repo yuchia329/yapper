@@ -36,7 +36,7 @@ resource "aws_s3_bucket_cors_configuration" "artifacts" {
 
   cors_rule {
     allowed_methods = ["GET", "PUT", "HEAD"]
-    allowed_origins = ["https://recap.yuchia.dev"]
+    allowed_origins = ["https://yapper.yuchia.dev"]
     allowed_headers = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
@@ -45,17 +45,17 @@ resource "aws_s3_bucket_cors_configuration" "artifacts" {
 
 # A dedicated IAM user scoped to just this bucket; its key is injected into the app Secret.
 # (Prefer an EC2 instance role if you wire one up later; static keys are fine for one app.)
-resource "aws_iam_user" "recap" {
-  name = "recap-app"
+resource "aws_iam_user" "yapper" {
+  name = "yapper-app"
 }
 
-resource "aws_iam_access_key" "recap" {
-  user = aws_iam_user.recap.name
+resource "aws_iam_access_key" "yapper" {
+  user = aws_iam_user.yapper.name
 }
 
-resource "aws_iam_user_policy" "recap_s3" {
-  name = "recap-s3-access"
-  user = aws_iam_user.recap.name
+resource "aws_iam_user_policy" "yapper_s3" {
+  name = "yapper-s3-access"
+  user = aws_iam_user.yapper.name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

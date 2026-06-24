@@ -1,7 +1,7 @@
 # Local: point storage at in-cluster MinIO; browser presign host = NodePort on localhost.
 apiVersion: v1
 kind: ConfigMap
-metadata: {name: jieshuo-config}
+metadata: {name: yapper-config}
 data:
   S3_ENDPOINT_URL: "http://minio:9000"          # api/workers -> MinIO in-cluster
   S3_PUBLIC_ENDPOINT_URL: "http://localhost:30900"  # browser -> MinIO NodePort

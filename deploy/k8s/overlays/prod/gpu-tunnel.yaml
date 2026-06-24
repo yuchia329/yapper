@@ -8,12 +8,12 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: gpu-tunnel
-  labels: {app: jieshuo, component: gpu-tunnel}
+  labels: {app: yapper, component: gpu-tunnel}
 spec:
   replicas: 1
-  selector: {matchLabels: {app: jieshuo, component: gpu-tunnel}}
+  selector: {matchLabels: {app: yapper, component: gpu-tunnel}}
   template:
-    metadata: {labels: {app: jieshuo, component: gpu-tunnel}}
+    metadata: {labels: {app: yapper, component: gpu-tunnel}}
     spec:
       containers:
         - name: ssh-tunnel
@@ -34,9 +34,9 @@ spec:
                 echo "[gpu-tunnel] ssh exited — retrying in 5s"; sleep 5
               done
           env:
-            - {name: GPU_HOST, valueFrom: {configMapKeyRef: {name: jieshuo-config, key: GPU_HOST}}}
-            - {name: GPU_USER, valueFrom: {configMapKeyRef: {name: jieshuo-config, key: GPU_USER}}}
-            - {name: GPU_PORT, valueFrom: {configMapKeyRef: {name: jieshuo-config, key: GPU_PORT, optional: true}}}
+            - {name: GPU_HOST, valueFrom: {configMapKeyRef: {name: yapper-config, key: GPU_HOST}}}
+            - {name: GPU_USER, valueFrom: {configMapKeyRef: {name: yapper-config, key: GPU_USER}}}
+            - {name: GPU_PORT, valueFrom: {configMapKeyRef: {name: yapper-config, key: GPU_PORT, optional: true}}}
           volumeMounts: [{name: ssh-key, mountPath: /ssh-key, readOnly: true}]
           resources:
             requests: {cpu: "20m", memory: "32Mi"}
@@ -49,10 +49,10 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gpu-tunnel
-  labels: {app: jieshuo, component: gpu-tunnel}
+  labels: {app: yapper, component: gpu-tunnel}
 spec:
   clusterIP: None        # headless: pods dial the tunnel pod IP directly, incl the dynamic 50060-50099 range
-  selector: {app: jieshuo, component: gpu-tunnel}
+  selector: {app: yapper, component: gpu-tunnel}
   ports:
     - {name: gpud, port: 50050, targetPort: 50050}
     - {name: gpud-metrics, port: 9050, targetPort: 9050}

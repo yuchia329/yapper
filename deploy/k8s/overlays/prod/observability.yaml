@@ -2,65 +2,65 @@
 # overlay (kbst kustomization_resource) rather than Terraform's kubernetes_manifest, which
 # would require the cluster reachable + the CRDs present at PLAN time. The operator selects
 # ServiceMonitors cluster-wide ({} selectors); `release: prometheus` is required so its
-# ruleSelector adopts the PrometheusRule. The overlay forces namespace: recap, so don't set
+# ruleSelector adopts the PrometheusRule. The overlay forces namespace: yapper, so don't set
 # it here. commonLabels adds part-of to metadata only (NOT to a CRD's spec.selector —
 # verified), and the target Services carry part-of too, so scraping matches regardless.
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: recap-api
+  name: yapper-api
   labels: {release: prometheus}
 spec:
   selector:
-    matchLabels: {app: jieshuo, component: api}
+    matchLabels: {app: yapper, component: api}
   namespaceSelector:
-    matchNames: [recap]
+    matchNames: [yapper]
   endpoints:
     - {port: http, path: /metrics, interval: 30s}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: recap-gpud
+  name: yapper-gpud
   labels: {release: prometheus}
 spec:
   selector:
-    matchLabels: {app: jieshuo, component: gpu-tunnel}
+    matchLabels: {app: yapper, component: gpu-tunnel}
   namespaceSelector:
-    matchNames: [recap]
+    matchNames: [yapper]
   endpoints:
     - {port: gpud-metrics, path: /metrics, interval: 30s}
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: recap-alerts
+  name: yapper-alerts
   labels: {release: prometheus}
 spec:
   groups:
-    - name: recap
+    - name: yapper
       rules:
-        - alert: RecapApiDown
-          expr: up{namespace="recap", service="api"} == 0
+        - alert: YapperApiDown
+          expr: up{namespace="yapper", service="api"} == 0
           for: 2m
           labels: {severity: critical}
-          annotations: {summary: "recap API is down (no /metrics scrape)"}
-        - alert: RecapGpudUnreachable
-          expr: up{namespace="recap", service="gpu-tunnel"} == 0
+          annotations: {summary: "yapper API is down (no /metrics scrape)"}
+        - alert: YapperGpudUnreachable
+          expr: up{namespace="yapper", service="gpu-tunnel"} == 0
           for: 3m
           labels: {severity: critical}
           annotations: {summary: "gpud unreachable via the SSH tunnel — ASR/TTS will fail"}
-        - alert: RecapQueueBacklog
-          expr: jieshuo_queue_depth > 10
+        - alert: YapperQueueBacklog
+          expr: yapper_queue_depth > 10
           for: 10m
           labels: {severity: warning}
           annotations: {summary: "Celery queue {{ $labels.queue }} backed up ({{ $value }} pending)"}
-        - alert: RecapRunErrors
-          expr: jieshuo_runs{status="error"} >= 3
+        - alert: YapperRunErrors
+          expr: yapper_runs{status="error"} >= 3
           for: 5m
           labels: {severity: warning}
-          annotations: {summary: "{{ $value }} recap runs in error state"}
-        - alert: RecapRootDiskLow
+          annotations: {summary: "{{ $value }} yapper runs in error state"}
+        - alert: YapperRootDiskLow
           # The shared 40 GB root EBS is the box's tightest resource.
           expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
           for: 5m

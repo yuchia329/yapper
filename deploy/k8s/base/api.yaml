@@ -2,26 +2,26 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api
-  labels: {app: jieshuo, component: api}
+  labels: {app: yapper, component: api}
 spec:
   replicas: 2
   selector:
-    matchLabels: {app: jieshuo, component: api}
+    matchLabels: {app: yapper, component: api}
   template:
     metadata:
-      labels: {app: jieshuo, component: api}
+      labels: {app: yapper, component: api}
     spec:
       containers:
         - name: api
-          image: jieshuoforge:latest
+          image: yapper:latest
           imagePullPolicy: IfNotPresent
-          command: ["gunicorn", "jieshuoforge_web.api:app",
+          command: ["gunicorn", "yapper_web.api:app",
                     "-k", "uvicorn.workers.UvicornWorker",
                     "-b", "0.0.0.0:8000", "--workers", "2", "--timeout", "120"]
           ports: [{containerPort: 8000}]
           envFrom:
-            - configMapRef: {name: jieshuo-config}
-            - secretRef: {name: jieshuo-secrets}
+            - configMapRef: {name: yapper-config}
+            - secretRef: {name: yapper-secrets}
           readinessProbe:
             httpGet: {path: /healthz, port: 8000}
             initialDelaySeconds: 5
@@ -38,15 +38,15 @@ apiVersion: v1
 kind: Service
 metadata:
   name: api
-  labels: {app: jieshuo, component: api}
+  labels: {app: yapper, component: api}
 spec:
-  selector: {app: jieshuo, component: api}
+  selector: {app: yapper, component: api}
   ports: [{name: http, port: 80, targetPort: 8000}]
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: jieshuo
+  name: yapper
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "0"
     # SSE: disable proxy buffering for the run-events stream.

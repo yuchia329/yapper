@@ -1,68 +1,263 @@
 {
-  "uid": "jieshuo-fleet",
-  "title": "解说 · Fleet Overview",
-  "tags": ["jieshuo"],
+  "uid": "yapper-fleet",
+  "title": "解說 · Fleet Overview",
+  "tags": [
+    "yapper"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "refresh": "10s",
-  "time": {"from": "now-6h", "to": "now"},
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
   "panels": [
     {
-      "type": "stat", "title": "Runs in progress", "id": 1,
-      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
-      "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}}},
-      "targets": [{"expr": "jieshuo_runs_in_progress", "refId": "A"}]
+      "type": "stat",
+      "title": "Runs in progress",
+      "id": 1,
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_runs_in_progress",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "stat", "title": "LLM credit remaining (USD)", "id": 2,
-      "gridPos": {"h": 4, "w": 5, "x": 4, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "currencyUSD", "decimals": 3,
-        "thresholds": {"mode": "absolute", "steps": [
-          {"color": "red", "value": null}, {"color": "orange", "value": 0.6}, {"color": "green", "value": 1.5}]}}},
-      "targets": [{"expr": "jieshuo_llm_budget_remaining_usd", "refId": "A"}]
+      "type": "stat",
+      "title": "LLM credit remaining (USD)",
+      "id": 2,
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 4,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.6
+              },
+              {
+                "color": "green",
+                "value": 1.5
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_llm_budget_remaining_usd",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "piechart", "title": "Runs by status", "id": 3,
-      "gridPos": {"h": 8, "w": 7, "x": 9, "y": 0},
-      "targets": [{"expr": "jieshuo_runs", "legendFormat": "{{status}}", "refId": "A"}]
+      "type": "piechart",
+      "title": "Runs by status",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 7,
+        "x": 9,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "yapper_runs",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "stat", "title": "GPU services up", "id": 4,
-      "gridPos": {"h": 8, "w": 4, "x": 16, "y": 0},
-      "fieldConfig": {"defaults": {"mappings": [
-        {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}]}},
-      "targets": [{"expr": "jieshuo_gpu_service_up", "legendFormat": "{{service}}", "refId": "A"}]
+      "type": "stat",
+      "title": "GPU services up",
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "expr": "yapper_gpu_service_up",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "gauge", "title": "Disk free (work volume)", "id": 5,
-      "gridPos": {"h": 8, "w": 4, "x": 20, "y": 0},
-      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1,
-        "thresholds": {"mode": "absolute", "steps": [
-          {"color": "red", "value": null}, {"color": "orange", "value": 0.1}, {"color": "green", "value": 0.25}]}}},
-      "targets": [{"expr": "node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}", "refId": "A"}]
+      "type": "gauge",
+      "title": "Disk free (work volume)",
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "green",
+                "value": 0.25
+              }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "timeseries", "title": "Queue depth", "id": 6,
-      "gridPos": {"h": 8, "w": 9, "x": 0, "y": 4},
-      "targets": [{"expr": "jieshuo_queue_depth", "legendFormat": "{{queue}}", "refId": "A"}]
+      "type": "timeseries",
+      "title": "Queue depth",
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 9,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "yapper_queue_depth",
+          "legendFormat": "{{queue}}",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "timeseries", "title": "Stage duration p95 (s)", "id": 7,
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
-      "fieldConfig": {"defaults": {"unit": "s"}},
-      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(jieshuo_stage_duration_seconds_bucket[1h])) by (le, stage))", "legendFormat": "{{stage}}", "refId": "A"}]
+      "type": "timeseries",
+      "title": "Stage duration p95 (s)",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(yapper_stage_duration_seconds_bucket[1h])) by (le, stage))",
+          "legendFormat": "{{stage}}",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "timeseries", "title": "GPU utilization", "id": 8,
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
-      "fieldConfig": {"defaults": {"unit": "percent"}},
-      "targets": [{"expr": "DCGM_FI_DEV_GPU_UTIL", "legendFormat": "gpu {{gpu}}", "refId": "A"}]
+      "type": "timeseries",
+      "title": "GPU utilization",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        }
+      },
+      "targets": [
+        {
+          "expr": "DCGM_FI_DEV_GPU_UTIL",
+          "legendFormat": "gpu {{gpu}}",
+          "refId": "A"
+        }
+      ]
     },
     {
-      "type": "timeseries", "title": "TTS / ASR request latency p95 (s)", "id": 9,
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
-      "fieldConfig": {"defaults": {"unit": "s"}},
-      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(jieshuo_gpu_request_seconds_bucket[15m])) by (le, service))", "legendFormat": "{{service}}", "refId": "A"}]
+      "type": "timeseries",
+      "title": "TTS / ASR request latency p95 (s)",
+      "id": 9,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(yapper_gpu_request_seconds_bucket[15m])) by (le, service))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }

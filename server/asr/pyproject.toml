@@ -3,10 +3,10 @@
 #   uv run --no-sync --project ~/jieshuo/server/asr python ~/jieshuo/server/asr_service.py
 #
 # Deps-only "virtual" project (package = false): `uv sync` just builds server/asr/.venv.
-# The service code (server/*.py) and stubs (jieshuorpc/) are reached via the script dir +
+# The service code (server/*.py) and stubs (yapper_rpc/) are reached via the script dir +
 # PYTHONPATH=~/jieshuo, not installed here.
 [project]
-name = "jieshuo-asr-env"
+name = "yapper-asr-env"
 version = "0"
 # >=3.11: whisperx pulls onnxruntime, which dropped Python 3.10 wheels (latest ships
 # cp311-cp314 only). The TTS env stays on 3.10 for CosyVoice2 — the envs are independent.

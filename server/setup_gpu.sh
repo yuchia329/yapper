@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# One-time GPU-box setup for the jieshuoforge inference services (uv-native).
+# One-time GPU-box setup for the yapper inference services (uv-native).
 #
-# Run ON the box, after copying server/ + jieshuorpc/ to $JIESHUO_ROOT (default ~/jieshuo):
+# Run ON the box, after copying server/ + yapper_rpc/ to $JIESHUO_ROOT (default ~/jieshuo):
 #   # from your machine:
-#   scp -r server jieshuorpc nlp:~/jieshuo/
+#   scp -r server yapper_rpc nlp:~/jieshuo/
 #   # on the box:
 #   ssh nlp 'bash ~/jieshuo/server/setup_gpu.sh'
 #
@@ -30,7 +30,7 @@ log() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 # 0. preconditions
 [ -d "$ROOT/server/asr" ] && [ -d "$ROOT/server/tts" ] || {
   echo "ERROR: $ROOT/server/{asr,tts} not found — copy server/ to $ROOT first" >&2; exit 1; }
-[ -d "$ROOT/jieshuorpc" ] || echo "WARN: $ROOT/jieshuorpc missing — copy the gRPC stubs too (needed at runtime)"
+[ -d "$ROOT/yapper_rpc" ] || echo "WARN: $ROOT/yapper_rpc missing — copy the gRPC stubs too (needed at runtime)"
 log "jieshuo root: $ROOT   asr-python: $ASR_PYTHON   tts-python: $TTS_PYTHON"
 mkdir -p "$ROOT/models" "$ROOT/voices"
 

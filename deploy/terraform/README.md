@@ -1,13 +1,13 @@
-# Terraform — recap.yuchia.dev production deploy
+# Terraform — yapper.yuchia.dev production deploy
 
-Deploys the movie-recap platform onto the existing **k3s/ARM EC2** (`hubstream`) and wires
+Deploys the Yapper commentary platform onto the existing **k3s/ARM EC2** (`hubstream`) and wires
 the cloud bits around it, in one `terraform apply`:
 
 | Provider | Manages |
 |---|---|
 | `aws` | S3 artifact bucket + **lifecycle retention** (the scheduled cleanup) + CORS + a scoped IAM user/key |
-| `cloudflare` | `recap.yuchia.dev` A record (proxied → edge TLS) |
-| `kubernetes` | `recap` namespace + the `jieshuo-secrets` / `gpu-ssh-key` Secrets + the Grafana dashboard ConfigMap (in `monitoring`) |
+| `cloudflare` | `yapper.yuchia.dev` A record (proxied → edge TLS) |
+| `kubernetes` | `yapper` namespace + the `yapper-secrets` / `gpu-ssh-key` Secrets + the Grafana dashboard ConfigMap (in `monitoring`) |
 | `kustomization` | the app workloads + observability CRs by applying `../k8s/overlays/prod` (api, worker, postgres, redis, gpu-tunnel, ingress, **ServiceMonitors + PrometheusRule**) |
 
 **Out of scope (by design):** the physical GPU box (`nlp-gpu-01.be.ucsc.edu`). Terraform
@@ -24,8 +24,15 @@ connects to it at runtime.
 The k3s cert isn't valid for the public IP, so forward the API over SSH and use a local kubeconfig:
 ```bash
 ssh -fN -L 6443:localhost:6443 hubstream
-scp hubstream:/etc/rancher/k3s/k3s.yaml ~/.kube/recap-k3s.yaml   # server is already https://127.0.0.1:6443
-KUBECONFIG=~/.kube/recap-k3s.yaml kubectl get ns                  # sanity check
+scp hubstream:/etc/rancher/k3s/k3s.yaml ~/.kube/yapper-k3s.yaml   # server is already https://127.0.0.1:6443
+KUBECONFIG=~/.kube/yapper-k3s.yaml kubectl get ns                  # sanity check
+```
+
+**To skip the manual tunnel for Terraform**, use the wrapper — it opens the `:6443` forward only
+if it isn't already up, runs terraform, then closes the tunnel it opened:
+```bash
+bash ../../scripts/tf.sh plan
+TF_VAR_image_tag=$(git rev-parse --short HEAD) bash ../../scripts/tf.sh apply
 ```
 
 ## 1. Build the ARM image and load it into k3s
@@ -49,7 +56,7 @@ terraform apply
 
 ## Part C — gpud on the GPU box (one-time, separate)
 ```bash
-scp -r ../../server ../../jieshuorpc nlp-gpu-01.be.ucsc.edu:~/jieshuo/
+scp -r ../../server ../../yapper_rpc nlp-gpu-01.be.ucsc.edu:~/jieshuo/
 ssh nlp-gpu-01.be.ucsc.edu 'bash ~/jieshuo/server/setup_gpu.sh'
 # run gpud under systemd (Restart=always) with GPUD_PORT_RANGE=50060-50099 + HF_TOKEN + TTS voice
 # — see server/README_deploy.md
@@ -57,18 +64,18 @@ ssh nlp-gpu-01.be.ucsc.edu 'bash ~/jieshuo/server/setup_gpu.sh'
 
 ## Verify
 ```bash
-kubectl -n recap get pods,ingress
-dig recap.yuchia.dev +short
-open https://recap.yuchia.dev          # upload a short clip; front half + "play original" work via S3
-kubectl -n recap logs deploy/gpu-tunnel   # forwards up; ASR/TTS stages complete
-# Prometheus → Status/Targets shows recap-api + recap-gpud UP; Grafana has "Recap · Overview".
+kubectl -n yapper get pods,ingress
+dig yapper.yuchia.dev +short
+open https://yapper.yuchia.dev          # upload a short clip; front half + "play original" work via S3
+kubectl -n yapper logs deploy/gpu-tunnel   # forwards up; ASR/TTS stages complete
+# Prometheus → Status/Targets shows yapper-api + yapper-gpud UP; Grafana has "Yapper · Overview".
 ```
 
 ## Notes
 - **Footprint:** the box is 2 vCPU / 8 GB shared with monitoring + hubstream + video-search
-  (~4.9 GB free at last check). recap is right-sized to ~2 GB. Watch `kubectl top node` after
+  (~4.9 GB free at last check). yapper is right-sized to ~2 GB. Watch `kubectl top node` after
   apply; if tight, the pushgateway is already off and you can bump to t4g.xlarge.
-- **Image tag:** `var.image_tag` is string-substituted into the rendered `recap:latest` so a
+- **Image tag:** `var.image_tag` is string-substituted into the rendered `yapper:latest` so a
   unique tag (git sha) forces a rollout. Re-run step 1 + `terraform apply` to ship a new build.
 - **Secrets** live only in `terraform.tfvars` / `TF_VAR_*` + Terraform state — never in git or
   the kustomize manifests (the overlay deletes the placeholder Secrets).

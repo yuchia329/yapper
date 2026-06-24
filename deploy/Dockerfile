@@ -20,20 +20,20 @@ WORKDIR /app
 
 # Install deps first for layer caching, then the package with the web extra.
 COPY pyproject.toml README.md ./
-COPY jieshuoforge ./jieshuoforge
-COPY jieshuoforge_web ./jieshuoforge_web
+COPY yapper ./yapper
+COPY yapper_web ./yapper_web
 COPY config ./config
 RUN pip install ".[web]"
 
 # gRPC stubs are committed generated code, NOT a pip-installed package — they ride PYTHONPATH
 # (same as on the GPU box). Copied after pip install so editing stubs doesn't bust the deps
-# layer. Without this the web/worker import `from jieshuorpc import ...` fails at startup.
-COPY jieshuorpc ./jieshuorpc
+# layer. Without this the web/worker import `from yapper_rpc import ...` fails at startup.
+COPY yapper_rpc ./yapper_rpc
 ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
 # Default command is the API; workers override `command:` in docker-compose.
-CMD ["gunicorn", "jieshuoforge_web.api:app", \
+CMD ["gunicorn", "yapper_web.api:app", \
      "-k", "uvicorn.workers.UvicornWorker", \
      "-b", "0.0.0.0:8000", "--workers", "2", "--timeout", "120"]

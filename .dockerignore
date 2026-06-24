@@ -1,0 +1,19 @@
+# Send ONLY what deploy/Dockerfile COPYs to the build daemon. The repo root also holds
+# multi-GB artifacts/data/scratch, the macOS .venv + vendored (macOS) ffmpeg, .git, and a
+# local .env secret — none belong in the build context. Whitelisting keeps the context tiny
+# and guarantees no .env/media can leak into an image layer.
+*
+
+!pyproject.toml
+!README.md
+!yapper
+!yapper_web
+!config
+!yapper_rpc
+
+# Belt-and-suspenders: never ship caches / compiled junk / secrets even from kept dirs.
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.env
+**/.env.*

@@ -8,7 +8,7 @@
 #
 # Exit 0 iff every check passes. Stages escalate cheap -> expensive:
 #   1. inventory  — venvs, CosyVoice source + Matcha-TTS submodule, stubs, weight files
-#   2. ASR env    — torch+CUDA, whisperx, NVML, jieshuorpc + grpc_health imports
+#   2. ASR env    — torch+CUDA, whisperx, NVML, yapper_rpc + grpc_health imports
 #   3. TTS env    — load CosyVoice2 + synthesize a clip  (the real proof; writes a WAV)
 #   4. ASR engine — faster-whisper/ctranslate2 on GPU, transcribe that clip (round-trip)
 #   5. gpud e2e   — Acquire -> gpud launches the TTS service -> Synthesize over the lease
@@ -24,7 +24,7 @@ export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 ASR_PY="$ROOT/server/asr/.venv/bin/python"
 TTS_PY="$ROOT/server/tts/.venv/bin/python"
 MODEL_DIR="${TTS_MODEL_DIR:-$ROOT/models/CosyVoice2-0.5B}"
-export PYTHONPATH="$ROOT:$ROOT/server"      # jieshuorpc (ROOT) + _metrics (server/); cosyvoice self-bootstraps
+export PYTHONPATH="$ROOT:$ROOT/server"      # yapper_rpc (ROOT) + _metrics (server/); cosyvoice self-bootstraps
 VERIFY_ASR_MODEL="${VERIFY_ASR_MODEL-tiny}"
 
 PASS=0; FAIL=0
@@ -46,7 +46,7 @@ hdr "1. Inventory (files only — instant)"
 [ -x "$TTS_PY" ] && ok "TTS venv"                       || bad "TTS venv missing — run setup_gpu.sh"
 [ -d "$ROOT/CosyVoice/cosyvoice" ] && ok "CosyVoice source checkout" || bad "CosyVoice/ missing"
 [ -d "$ROOT/CosyVoice/third_party/Matcha-TTS" ] && ok "Matcha-TTS submodule" || bad "Matcha-TTS missing — git clone --recursive"
-[ -f "$ROOT/jieshuorpc/tts_pb2.py" ] && ok "jieshuorpc stubs" || bad "jieshuorpc/ stubs missing — scp to box"
+[ -f "$ROOT/yapper_rpc/tts_pb2.py" ] && ok "yapper_rpc stubs" || bad "yapper_rpc/ stubs missing — scp to box"
 # Per-file presence is ADVISORY — the authoritative completeness check is whether CosyVoice2
 # actually loads (stage 3). A given snapshot may legitimately omit some files (e.g. spk2info.pt,
 # used only for pre-registered speakers; zero-shot derives the embedding from the ref clip).
@@ -61,8 +61,8 @@ hdr "2. ASR env — imports, CUDA, NVML, stubs"
 import sys
 try:
     import torch, whisperx, pynvml                                   # noqa: F401
-    import jieshuorpc.asr_pb2, jieshuorpc.asr_pb2_grpc               # noqa: F401
-    import jieshuorpc.gpud_pb2_grpc                                  # noqa: F401
+    import yapper_rpc.asr_pb2, yapper_rpc.asr_pb2_grpc               # noqa: F401
+    import yapper_rpc.gpud_pb2_grpc                                  # noqa: F401
     from grpc_health.v1 import health_pb2                            # noqa: F401
     pynvml.nvmlInit()
     assert torch.cuda.is_available(), "torch.cuda.is_available() is False"
@@ -89,9 +89,9 @@ try:
               cv.inference_zero_shot("设置验证，合成一句测试语音。", T.REF_TEXT, T.REF_WAV, stream=False)]
     audio = torch.concat(chunks, dim=1); dur = audio.shape[1] / cv.sample_rate
     assert dur > 0.3, f"audio too short ({dur:.2f}s)"
-    torchaudio.save("/tmp/jieshuo_tts_smoke.wav", audio.cpu(), cv.sample_rate, format="wav")
+    torchaudio.save("/tmp/yapper_tts_smoke.wav", audio.cpu(), cv.sample_rate, format="wav")
     print(f"  CosyVoice2 loaded in {time.time()-t0:.1f}s; synthesized {dur:.2f}s @ {cv.sample_rate}Hz "
-          f"-> /tmp/jieshuo_tts_smoke.wav")
+          f"-> /tmp/yapper_tts_smoke.wav")
 except Exception:
     import traceback; traceback.print_exc(); sys.exit(1)
 PY
@@ -108,7 +108,7 @@ import sys, os
 try:
     import torch                                  # noqa: F401 — preloads CUDA/cuDNN into the process
     from faster_whisper import WhisperModel
-    wav = "/tmp/jieshuo_tts_smoke.wav"
+    wav = "/tmp/yapper_tts_smoke.wav"
     if not os.path.exists(wav):
         print("  no TTS clip from stage 3 — skipping"); sys.exit(2)
     m = WhisperModel(os.environ["VAM"], device="cuda", compute_type="float16")
@@ -133,26 +133,26 @@ if [ "${RUN_GPUD:-}" = 1 ]; then
     TTS_REF_WAV="${TTS_REF_WAV:-$ROOT/CosyVoice/asset/zero_shot_prompt.wav}" \
     TTS_REF_TEXT="${TTS_REF_TEXT:-希望你以后能够做的比我还好呦。}" \
     GPUD_PORT_RANGE="${GPUD_PORT_RANGE:-50060-50099}" GPUD_ASR_MAX=1 GPUD_TTS_MAX=1 \
-    "$ASR_PY" "$ROOT/server/gpud.py" >/tmp/jieshuo_gpud_verify.log 2>&1 &
+    "$ASR_PY" "$ROOT/server/gpud.py" >/tmp/yapper_gpud_verify.log 2>&1 &
   GPUD_PID=$!
   "$ASR_PY" - <<'PY'
 import grpc, time, sys
-from jieshuorpc import gpud_pb2, gpud_pb2_grpc, tts_pb2, tts_pb2_grpc
+from yapper_rpc import gpud_pb2, gpud_pb2_grpc, tts_pb2, tts_pb2_grpc
 g = gpud_pb2_grpc.GpudStub(grpc.insecure_channel("localhost:50050"))
 up = False
 for _ in range(30):
     try: g.Status(gpud_pb2.StatusRequest(), timeout=3); up = True; break
     except Exception: time.sleep(1)
 if not up:
-    print("  gpud never came up (see /tmp/jieshuo_gpud_verify.log)"); sys.exit(1)
+    print("  gpud never came up (see /tmp/yapper_gpud_verify.log)"); sys.exit(1)
 try:
     lease = g.Acquire(gpud_pb2.AcquireRequest(service="tts"), timeout=300)   # launches + waits SERVING
     print(f"  Acquire -> target={lease.target} ready={lease.ready}")
     t = tts_pb2_grpc.TtsStub(grpc.insecure_channel(lease.target))
     data = b"".join(c.data for c in t.Synthesize(tts_pb2.SynthesizeRequest(text="网关验证完成。"), timeout=180))
     assert len(data) > 1000, f"too few WAV bytes: {len(data)}"
-    open("/tmp/jieshuo_gpud_smoke.wav", "wb").write(data)
-    print(f"  Synthesize over lease -> {len(data)} WAV bytes -> /tmp/jieshuo_gpud_smoke.wav")
+    open("/tmp/yapper_gpud_smoke.wav", "wb").write(data)
+    print(f"  Synthesize over lease -> {len(data)} WAV bytes -> /tmp/yapper_gpud_smoke.wav")
     g.Release(gpud_pb2.LeaseRef(lease_id=lease.lease_id))
     print("  Release ok")
 except Exception:
@@ -160,7 +160,7 @@ except Exception:
 PY
   rc=$?
   kill "$GPUD_PID" 2>/dev/null; wait "$GPUD_PID" 2>/dev/null
-  [ $rc = 0 ] && ok "gpud lease -> launch -> synth -> release" || bad "gpud e2e failed (see /tmp/jieshuo_gpud_verify.log)"
+  [ $rc = 0 ] && ok "gpud lease -> launch -> synth -> release" || bad "gpud e2e failed (see /tmp/yapper_gpud_verify.log)"
 fi
 
 # ---- summary ----------------------------------------------------------------

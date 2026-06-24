@@ -1,7 +1,7 @@
 """Auto-extract a cloned-narrator reference clip (+ few-shot style text) from a
-reference 解说 video.
+reference 解說 video.
 
-Why: the recap's voice sounded "too AI" because TTS used CosyVoice2's bundled
+Why: the commentary's voice sounded "too AI" because TTS used CosyVoice2's bundled
 placeholder clip. This builds a real narrator reference by transcribing a reference
 video (Mandarin) via the GPU WhisperX service, finding the cleanest continuous
 narration span, and cutting it out as the zero-shot clone prompt. The transcript
@@ -13,7 +13,7 @@ for a cleaner clone, optionally isolate vocals with Demucs on the GPU box first
 
 Works for any narration language via --language: pass an English reference video to
 build a natural English narrator voice (CosyVoice2 zero-shot clones the timbre, so a
-native-English reference makes the recap sound natural rather than accented).
+native-English reference makes the commentary sound natural rather than accented).
 
 Usage (needs the SSH tunnel up + ASR service reachable at ASR_SERVER_URL):
     uv run python scripts/build_narrator_ref.py data/RushHour1_final.webm           # Mandarin
@@ -43,25 +43,57 @@ sys.path.insert(0, str(REPO))
 
 from dotenv import load_dotenv  # noqa: E402
 
-from jieshuoforge.ffmpeg.run import FFMPEG, run  # noqa: E402
-from jieshuoforge.schemas import Transcript  # noqa: E402
-from jieshuoforge.server_clients.asr_client import ASRClient  # noqa: E402
+from yapper.ffmpeg.run import FFMPEG, run  # noqa: E402
+from yapper.schemas import Transcript  # noqa: E402
+from yapper.server_clients.asr_client import ASRClient  # noqa: E402
 
 REFS = REPO / "data" / "refs"
 
 
 def extract_wav(src: Path, dst: Path) -> None:
-    run([FFMPEG, "-y", "-hide_banner", "-loglevel", "error",
-         "-i", str(src), "-vn", "-ac", "1", "-ar", "16000", str(dst)])
+    run(
+        [
+            FFMPEG,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            str(src),
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            str(dst),
+        ]
+    )
 
 
 def cut_span(src_wav: Path, t0: float, dur: float, dst: Path) -> None:
-    run([FFMPEG, "-y", "-hide_banner", "-loglevel", "error",
-         "-ss", f"{t0:.3f}", "-t", f"{dur:.3f}", "-i", str(src_wav),
-         "-ac", "1", "-ar", "16000", str(dst)])
+    run(
+        [
+            FFMPEG,
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            f"{t0:.3f}",
+            "-t",
+            f"{dur:.3f}",
+            "-i",
+            str(src_wav),
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            str(dst),
+        ]
+    )
 
 
-# Traditional-only Chinese glyphs: a 解说 narrator writes Simplified; Traditional text
+# Traditional-only Chinese glyphs: a 解說 narrator writes Simplified; Traditional text
 # is almost always an embedded ORIGINAL movie clip (hardsub dialogue), i.e. the wrong
 # voice to clone. Used to skip those segments when picking the narrator reference.
 _TRAD = set("們這還麼學員當來時個認譯說讀寫聽愛點擊關註開頭結還沒沒")
@@ -79,7 +111,9 @@ def best_span(
     longest such. For zh, skips Traditional-text segments (embedded movie clips). Falls
     back to the longest segment, trimmed to target_len, if none fit."""
     if lang == "zh":
-        segs = [s for s in tr.segments if s.text.strip() and not _looks_like_clip(s.text)]
+        segs = [
+            s for s in tr.segments if s.text.strip() and not _looks_like_clip(s.text)
+        ]
     else:
         segs = [s for s in tr.segments if s.text.strip()]
     if not segs:
@@ -96,9 +130,13 @@ def best_span(
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("video", help="reference 解说 video, e.g. data/RushHour1_final.webm")
+    ap.add_argument(
+        "video", help="reference 解說 video, e.g. data/RushHour1_final.webm"
+    )
     ap.add_argument("--asr-url", default=None, help="override ASR_SERVER_URL")
-    ap.add_argument("--target-len", type=float, default=14.0, help="clone clip length (s)")
+    ap.add_argument(
+        "--target-len", type=float, default=14.0, help="clone clip length (s)"
+    )
     ap.add_argument("--min-len", type=float, default=8.0)
     ap.add_argument("--language", default="zh")
     args = ap.parse_args()
@@ -107,7 +145,9 @@ def main() -> None:
     lang = args.language.lower()
     asr_url = args.asr_url or os.environ.get("ASR_SERVER_URL")
     if not asr_url:
-        raise SystemExit("set ASR_SERVER_URL (start the tunnel + ASR service) or pass --asr-url")
+        raise SystemExit(
+            "set ASR_SERVER_URL (start the tunnel + ASR service) or pass --asr-url"
+        )
 
     REFS.mkdir(parents=True, exist_ok=True)
     src = Path(args.video).resolve()
@@ -133,7 +173,9 @@ def main() -> None:
     fewshot = REFS / ("fewshot.txt" if lang == "zh" else f"fewshot.{lang}.txt")
     if not fewshot.exists():
         fewshot.write_text(joined[:800].strip(), encoding="utf-8")
-        print(f"[3/4] wrote {fewshot.name} ({min(len(joined),800)} chars) — review/trim by hand")
+        print(
+            f"[3/4] wrote {fewshot.name} ({min(len(joined),800)} chars) — review/trim by hand"
+        )
     else:
         print(f"[3/4] {fewshot.name} already exists — left as-is")
 
@@ -146,7 +188,9 @@ def main() -> None:
     print(f"      REF_TEXT: {text}")
     print()
     section = "[tts]" if lang == "zh" else f"[tts.{lang}]"
-    print(f"Next: upload {ref_wav.name} to the GPU box, then set in config/pipeline.toml {section}:")
+    print(
+        f"Next: upload {ref_wav.name} to the GPU box, then set in config/pipeline.toml {section}:"
+    )
     print(f'  reference_clip = "/abs/server/path/{ref_wav.name}"')
     print(f'  reference_text = "{text}"')
 

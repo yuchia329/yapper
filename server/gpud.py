@@ -27,7 +27,7 @@ from typing import Callable, Protocol
 
 import grpc
 
-from jieshuorpc import gpud_pb2, gpud_pb2_grpc
+from yapper_rpc import gpud_pb2, gpud_pb2_grpc
 
 # ---------------------------------------------------------------------------
 # adapters (injected; production defaults below)
@@ -459,7 +459,7 @@ def serve() -> None:
     gpud_pb2_grpc.add_GpudServicer_to_server(GpudServicer(sup), server)
     hs = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(hs, server)
-    hs.set("jieshuorpc.Gpud", health_pb2.HealthCheckResponse.SERVING)
+    hs.set("yapper_rpc.Gpud", health_pb2.HealthCheckResponse.SERVING)
     hs.set("", health_pb2.HealthCheckResponse.SERVING)
     port = int(os.environ.get("GPUD_PORT", "50050"))
     server.add_insecure_port(f"[::]:{port}")
@@ -489,7 +489,7 @@ def _start_metrics(sup: Supervisor) -> None:
             def collect(self):
                 instances, gpus = sup.status()
                 up = GaugeMetricFamily(
-                    "jieshuo_gpud_instances", "Live model-server processes by service and lifecycle",
+                    "yapper_gpud_instances", "Live model-server processes by service and lifecycle",
                     labels=["service", "state"],
                 )
                 counts: dict[tuple[str, str], int] = {}
@@ -499,8 +499,8 @@ def _start_metrics(sup: Supervisor) -> None:
                 for (svc, st), n in counts.items():
                     up.add_metric([svc, st], n)
                 yield up
-                free = GaugeMetricFamily("jieshuo_gpud_gpu_free_mb", "Free vRAM per GPU", labels=["gpu"])
-                total = GaugeMetricFamily("jieshuo_gpud_gpu_total_mb", "Total vRAM per GPU", labels=["gpu"])
+                free = GaugeMetricFamily("yapper_gpud_gpu_free_mb", "Free vRAM per GPU", labels=["gpu"])
+                total = GaugeMetricFamily("yapper_gpud_gpu_total_mb", "Total vRAM per GPU", labels=["gpu"])
                 for g, (f, t) in gpus.items():
                     free.add_metric([str(g)], f)
                     total.add_metric([str(g)], t)

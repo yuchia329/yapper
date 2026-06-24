@@ -1,6 +1,6 @@
 """WhisperX ASR service — gRPC (deploy on the GPU server, one RTX 3090).
 
-Implements jieshuorpc.Asr/Transcribe (client-streaming: config message then WAV byte
+Implements yapper_rpc.Asr/Transcribe (client-streaming: config message then WAV byte
 chunks) -> TranscriptReply with word-level segments (+ optional speaker labels).
 
 Run:
@@ -8,7 +8,7 @@ Run:
     python asr_service.py
 
 Needs (in the ASR venv): grpcio, grpcio-health-checking, protobuf, prometheus-client,
-whisperx — plus the `jieshuorpc` package on PYTHONPATH (copy it next to server/).
+whisperx — plus the `yapper_rpc` package on PYTHONPATH (copy it next to server/).
 See README_deploy.md for the CUDA 12 / cuDNN 9 setup.
 """
 
@@ -24,7 +24,7 @@ import torch
 import whisperx
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
-from jieshuorpc import asr_pb2, asr_pb2_grpc
+from yapper_rpc import asr_pb2, asr_pb2_grpc
 
 from _metrics import ASR_SEGMENTS, MetricsInterceptor, start_metrics_server
 
@@ -118,7 +118,7 @@ def serve() -> None:
     asr_pb2_grpc.add_AsrServicer_to_server(AsrServicer(), server)
     health_servicer = health.HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
-    health_servicer.set("jieshuorpc.Asr", health_pb2.HealthCheckResponse.SERVING)
+    health_servicer.set("yapper_rpc.Asr", health_pb2.HealthCheckResponse.SERVING)
     health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
 
     start_metrics_server("asr", METRICS_PORT)

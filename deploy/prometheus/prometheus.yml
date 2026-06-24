@@ -8,21 +8,21 @@ rule_files:
   - /etc/prometheus/alerts.yml
 
 scrape_configs:
-  - job_name: jieshuo-api
+  - job_name: yapper-api
     metrics_path: /metrics
     static_configs:
       - targets: ["api:8000"]
-  - job_name: jieshuo-pushgateway
+  - job_name: yapper-pushgateway
     honor_labels: true
     static_configs:
       - targets: ["pushgateway:9091"]
-  - job_name: jieshuo-node
+  - job_name: yapper-node
     static_configs:
       - targets: ["node-exporter:9100"]
-  - job_name: jieshuo-gpu-services
+  - job_name: yapper-gpu-services
     metrics_path: /metrics
     static_configs:
       - targets: ["10.10.0.2:9101", "10.10.0.2:9102"]   # gRPC services' side metrics ports
-  - job_name: jieshuo-gpu-dcgm
+  - job_name: yapper-gpu-dcgm
     static_configs:
       - targets: ["10.10.0.2:9400"]

@@ -1,10 +1,10 @@
 # In-cluster Postgres + Redis (chosen for prod too). Overlays size the PVCs.
 apiVersion: v1
 kind: Service
-metadata: {name: postgres, labels: {app: jieshuo, component: postgres}}
+metadata: {name: postgres, labels: {app: yapper, component: postgres}}
 spec:
   clusterIP: None
-  selector: {app: jieshuo, component: postgres}
+  selector: {app: yapper, component: postgres}
   ports: [{port: 5432, targetPort: 5432}]
 ---
 apiVersion: apps/v1
@@ -13,9 +13,9 @@ metadata: {name: postgres}
 spec:
   serviceName: postgres
   replicas: 1
-  selector: {matchLabels: {app: jieshuo, component: postgres}}
+  selector: {matchLabels: {app: yapper, component: postgres}}
   template:
-    metadata: {labels: {app: jieshuo, component: postgres}}
+    metadata: {labels: {app: yapper, component: postgres}}
     spec:
       containers:
         - name: postgres
@@ -24,7 +24,7 @@ spec:
             - {name: POSTGRES_USER, value: jieshuo}
             - {name: POSTGRES_DB, value: jieshuo}
             - name: POSTGRES_PASSWORD
-              valueFrom: {secretKeyRef: {name: jieshuo-secrets, key: POSTGRES_PASSWORD}}
+              valueFrom: {secretKeyRef: {name: yapper-secrets, key: POSTGRES_PASSWORD}}
             - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
           ports: [{containerPort: 5432}]
           volumeMounts: [{name: pgdata, mountPath: /var/lib/postgresql/data}]
@@ -40,10 +40,10 @@ spec:
 ---
 apiVersion: v1
 kind: Service
-metadata: {name: redis, labels: {app: jieshuo, component: redis}}
+metadata: {name: redis, labels: {app: yapper, component: redis}}
 spec:
   clusterIP: None
-  selector: {app: jieshuo, component: redis}
+  selector: {app: yapper, component: redis}
   ports: [{port: 6379, targetPort: 6379}]
 ---
 apiVersion: apps/v1
@@ -52,9 +52,9 @@ metadata: {name: redis}
 spec:
   serviceName: redis
   replicas: 1
-  selector: {matchLabels: {app: jieshuo, component: redis}}
+  selector: {matchLabels: {app: yapper, component: redis}}
   template:
-    metadata: {labels: {app: jieshuo, component: redis}}
+    metadata: {labels: {app: yapper, component: redis}}
     spec:
       containers:
         - name: redis

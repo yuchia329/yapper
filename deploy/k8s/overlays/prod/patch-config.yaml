@@ -3,7 +3,7 @@
 # and on-demand GPU via gpud reached through the in-cluster gpu-tunnel Service.
 apiVersion: v1
 kind: ConfigMap
-metadata: {name: jieshuo-config}
+metadata: {name: yapper-config}
 data:
   S3_BUCKET: "recap-artifacts-prod"
   AWS_REGION: "us-east-1"
@@ -20,5 +20,5 @@ data:
   GPU_PORT: "22"
   # Worker per-run push metrics disabled by default to save RAM on the shared box; the API
   # pull /metrics (queue depth, runs, errors, budget) + gpud cover the critical signals.
-  # Set to http://recap-pushgateway:9091 and deploy a pushgateway to enable stage histograms.
+  # Set to http://yapper-pushgateway:9091 and deploy a pushgateway to enable stage histograms.
   PUSHGATEWAY_URL: ""

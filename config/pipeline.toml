@@ -40,7 +40,7 @@ jpeg_quality = 85
 workers = 0                   # parallel scene keyframe extraction; 0 = auto (min(8, cpu cores))
 
 [llm]
-# 解说 script brain. OpenAI-compatible: works for MiniMax and self-hosted vLLM
+# 解說 script brain. OpenAI-compatible: works for MiniMax and self-hosted vLLM
 # (only base_url + model change). Set MINIMAX_API_KEY in .env.
 provider = "minimax"
 base_url = "https://api.minimax.io/v1"   # overridable via LLM_BASE_URL
@@ -57,9 +57,9 @@ thinking_map = "adaptive"
 thinking_reduce = "disabled"
 
 [narration]
-# Narration language: "zh" (Mandarin 抖音/快手 解说) or "en" (English YouTube-style recap).
+# Narration language: "zh" (Mandarin 抖音/快手 解說) or "en" (English YouTube-style commentary).
 # The source film can be in any language; the model translates and retells in this one.
-# Override per run with: jieshuo run MOVIE --lang en
+# Override per run with: yap run MOVIE --lang en
 language = "zh"
 # Spoken-rate calibration for the runtime budget (s08 estimates seconds from the text).
 zh_cps = 4.0                  # Mandarin characters per second (CosyVoice2 measured ~3.8)
@@ -72,7 +72,7 @@ hook_seconds = 3              # opening hook budget
 structure = "hook -> conflict -> emotional_peak -> cta"
 
 [platform.youtube_recap]
-# English movie-recap profile (used when narration language is "en"). Tune to taste.
+# English commentary profile (YouTube movie-recap style; used when narration language is "en"). Tune to taste.
 target_min_sec = 600          # 10 min
 target_max_sec = 720          # 12 min
 hook_seconds = 3              # cold-open hook budget
@@ -81,7 +81,7 @@ structure = "cold-open hook -> setup -> rising conflict -> climax -> resolution 
 [tts]
 provider = "cosyvoice2"       # cosyvoice2 | indextts2
 # Server-side path to the cloned-narrator reference clip + its transcript. Built by
-# scripts/build_narrator_ref.py (auto-extracted from a reference 解说 video). When set,
+# scripts/build_narrator_ref.py (auto-extracted from a reference 解說 video). When set,
 # the client passes them per-request so the voice is swappable without restarting the
 # service; empty -> service falls back to its TTS_REF_WAV/TTS_REF_TEXT env (or placeholder).
 reference_clip = "/home/ychan137/jieshuo/voices/narrator_ref.wav"   # path ON the GPU server (auto-extracted from RushHour1_final.webm)
@@ -119,6 +119,8 @@ width = 1920
 height = 1080
 fps = 30
 vcodec = "libx264"            # CPU encode (vendored static ffmpeg has libass but not VideoToolbox)
+preset = "veryfast"           # libx264 speed/size tradeoff: ~3-4x faster than the medium default, negligible quality loss at this CRF. Ignored by non-x264 encoders.
+crf = 23                      # libx264 quality (lower = better/larger); 23 is the libx264 default
 pix_fmt = "yuv420p"
 audio_rate = 48000
 target_lufs = -16.0

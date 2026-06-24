@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate the gRPC python stubs from jieshuorpc/*.proto into jieshuorpc/.
+# Regenerate the gRPC python stubs from yapper_rpc/*.proto into yapper_rpc/.
 # The generated *_pb2.py / *_pb2_grpc.py are committed so neither the web image nor
 # the GPU box needs protoc at build/deploy time.
 #
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-OUT="$REPO/jieshuorpc"
+OUT="$REPO/yapper_rpc"
 
 # Pin the generator to protobuf-4.25 gencode ON PURPOSE. The TTS env (CosyVoice) hard-pins
 # protobuf==4.25, whose runtime has no `google.protobuf.runtime_version`. Stubs from a newer
@@ -21,13 +21,13 @@ OUT="$REPO/jieshuorpc"
 # denominator across all consumers — DON'T bump without re-checking the TTS env.
 GRPCIO_TOOLS_VERSION="${GRPCIO_TOOLS_VERSION:-1.62.3}"
 
-# Generate with package-qualified imports so `from jieshuorpc import asr_pb2` works.
+# Generate with package-qualified imports so `from yapper_rpc import asr_pb2` works.
 uv run --no-project --with "grpcio-tools==${GRPCIO_TOOLS_VERSION}" \
   python -m grpc_tools.protoc \
   -I"$REPO" \
   --python_out="$REPO" \
   --grpc_python_out="$REPO" \
-  jieshuorpc/asr.proto jieshuorpc/tts.proto jieshuorpc/gpud.proto
+  yapper_rpc/asr.proto yapper_rpc/tts.proto yapper_rpc/gpud.proto
 
 echo "generated stubs in $OUT:"
 ls -1 "$OUT"/*_pb2*.py

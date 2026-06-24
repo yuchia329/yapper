@@ -1,6 +1,6 @@
-# 解说 Platform — deployment
+# 解說 Platform — deployment
 
-Turns the `jieshuo` CLI into a multi-user web service on one EC2 control plane. The
+Turns the `yap` CLI into a multi-user web service on one EC2 control plane. The
 GPU box (WhisperX ASR + CosyVoice2 TTS) stays where it is; the CLI keeps working
 unchanged (it uses `LocalStorage` and never touches any of this).
 
@@ -21,10 +21,10 @@ Browser ──cookie──▶ nginx ─▶ FastAPI (api)            object store
 Same code, two profiles that differ only by env. Files are object-stored in **both**
 (boto3 + `endpoint_url`), so local/prod share one code path:
 
-| | files | datastores | GPU services | cookies |
-|---|---|---|---|---|
+|           | files            | datastores                               | GPU services        | cookies         |
+| --------- | ---------------- | ---------------------------------------- | ------------------- | --------------- |
 | **local** | MinIO (in-stack) | redis+postgres containers / StatefulSets | external box (gRPC) | insecure (http) |
-| **prod** | AWS S3 | in-cluster StatefulSets | external box (gRPC) | secure (https) |
+| **prod**  | AWS S3           | in-cluster StatefulSets                  | external box (gRPC) | secure (https)  |
 
 The one wrinkle: presigned URLs embed the host, and the browser reaches MinIO under a
 different name than the in-cluster services do — so `S3_PUBLIC_ENDPOINT_URL` (browser)
@@ -40,6 +40,7 @@ docker compose -f deploy/compose/docker-compose.base.yml -f deploy/compose/docke
 # PROD (AWS S3, single EC2) — host-metrics profile enables node-exporter (Linux host only):
 COMPOSE_PROFILES=host-metrics docker compose -f deploy/compose/docker-compose.base.yml -f deploy/compose/docker-compose.prod.yml up -d --build
 ```
+
 `deploy/docker-compose.yml` is the original single-file stack (still valid). The
 `docker-compose.observability.yml` overlay adds Prometheus/Grafana/Loki if you don't
 already run them. Tables auto-create on first start (`init_db`); swap in Alembic later.
@@ -48,12 +49,13 @@ already run them. Tables auto-create on first start (`init_db`); swap in Alembic
 
 ```bash
 # build + make the image available to the cluster
-docker build -f deploy/Dockerfile -t jieshuoforge:latest .
-kind load docker-image jieshuoforge:latest            # local (kind)
+docker build -f deploy/Dockerfile -t yapper:latest .
+kind load docker-image yapper:latest            # local (kind)
 
 kubectl apply -k deploy/k8s/overlays/local            # MinIO + in-cluster pg/redis; app on :30800
 kubectl apply -k deploy/k8s/overlays/prod             # AWS S3; in-cluster pg/redis StatefulSets; TLS ingress + HPA
 ```
+
 Render without applying: `kubectl kustomize deploy/k8s/overlays/{local,prod}`.
 
 - **Worker pods use an emptyDir `WORK_ROOT`** — no shared RWX volume, because S3 is the
@@ -69,10 +71,11 @@ Render without applying: `kubectl kustomize deploy/k8s/overlays/{local,prod}`.
 
 ## gRPC (ASR + TTS)
 
-The worker↔GPU calls are gRPC (`jieshuorpc.Asr` / `jieshuorpc.Tts`); the browser↔API
+The worker↔GPU calls are gRPC (`yapper_rpc.Asr` / `yapper_rpc.Tts`); the browser↔API
 stays REST and API↔workers stays on the Redis broker. Stubs are generated/committed in
-`jieshuorpc/` (`bash scripts/gen_protos.sh` to regenerate). Run the servers on the box
+`yapper_rpc/` (`bash scripts/gen_protos.sh` to regenerate). Run the servers on the box
 per `server/README_deploy.md`. Verify:
+
 ```bash
 grpcurl -plaintext <box>:50051 grpc.health.v1.Health/Check
 curl -s <box>:9101/metrics | head      # ASR Prometheus side port (TTS: 9102)
@@ -96,11 +99,11 @@ sure the ASR/TTS services expose `/metrics` (they do via `server/_metrics.py` on
   but ASR and TTS each serialize on their own queue (concurrency 1 + a Redis lock),
   while overlapping each other across their two GPUs. To go
   faster, add GPU workers + point them at more GPUs — not more EC2.
-- **$3 LLM cap** is enforced in `jieshuoforge_web/budget.py`: an atomic Redis reserve at
+- **$3 LLM cap** is enforced in `yapper_web/budget.py`: an atomic Redis reserve at
   enqueue rejects a run that can't afford the worst case, and a mid-run hard check aborts
-  cleanly. Watch `解说 · Cost` in Grafana; the `LLMBudgetNearlyExhausted` alert fires at 80%.
+  cleanly. Watch `解說 · Cost` in Grafana; the `LLMBudgetNearlyExhausted` alert fires at 80%.
 - **Disk**: render scratch + the per-run working cache live on the `work` volume. `celery
-  beat` prunes after S3 persist; size the volume for a few movies' worth of re-encodes and
+beat` prunes after S3 persist; size the volume for a few movies' worth of re-encodes and
   watch the disk-free panel.
 - **Storage**: S3 is durable; the local `work` volume is just a cache. On a single host
   it stays warm so `materialize`/`persist` are near-no-ops; a second host refills on miss.
@@ -111,4 +114,4 @@ sure the ASR/TTS services expose `/metrics` (they do via `server/_metrics.py` on
 - `prometheus/alerts.yml` — budget / GPU-down / disk / backlog / failure alerts.
 - `promtail/promtail.yml` — ships JSON logs (run_id/session_id/stage/lang labels) to Loki.
 - `grafana/dashboards/` — Fleet Overview + Cost. Run drill-down: filter Loki by `run_id`
-  and the pushgateway series (`jieshuo_stage_duration_seconds`, grouping_key run_id).
+  and the pushgateway series (`yapper_stage_duration_seconds`, grouping_key run_id).

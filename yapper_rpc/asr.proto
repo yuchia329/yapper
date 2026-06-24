@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package yapper_rpc;
+
+// WhisperX ASR service. Mirrors the former REST contract (asr_client.py): upload a
+// 16 kHz mono WAV, get back word-level segments (+ optional speaker labels).
+//
+// Transcribe is CLIENT-STREAMING because a feature-length film's WAV is hundreds of
+// MB — far past gRPC's 4 MB default message size. The first message carries the
+// config; every subsequent message is a chunk of the WAV bytes, in order.
+service Asr {
+  rpc Transcribe(stream TranscribeRequest) returns (TranscriptReply);
+}
+
+message TranscribeConfig {
+  string language = 1;       // optional; "" = autodetect
+  bool diarize = 2;
+  int32 min_speakers = 3;    // 0 = unset
+  int32 max_speakers = 4;    // 0 = unset
+}
+
+message TranscribeRequest {
+  oneof payload {
+    TranscribeConfig config = 1;  // first message only
+    bytes audio_chunk = 2;        // subsequent messages: raw WAV bytes, in order
+  }
+}
+
+message Word {
+  string text = 1;
+  double start = 2;
+  double end = 3;
+  double score = 4;
+  bool has_score = 5;   // distinguishes score=0.0 from "no score"
+}
+
+message Segment {
+  double start = 1;
+  double end = 2;
+  string text = 3;
+  string speaker = 4;   // "" when no diarization
+  repeated Word words = 5;
+}
+
+message TranscriptReply {
+  string language = 1;
+  repeated Segment segments = 2;
+}

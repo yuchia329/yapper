@@ -15,6 +15,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# shellcheck source=lib/gpu.sh
+. scripts/lib/gpu.sh
+
 DC=(docker compose
     -f deploy/compose/docker-compose.base.yml
     -f deploy/compose/docker-compose.local.yml)
@@ -35,6 +38,12 @@ esac
   echo "!! deploy/env/local.env.mine missing — no LLM_API_KEY / GPU targets; LLM + ASR/TTS stages will fail." >&2
 [ -f "${HOME}/.ssh/nlp_ed25519" ] || \
   echo "!! ~/.ssh/nlp_ed25519 missing — the gpu-tunnel sidecar can't reach the GPU box; non-GPU stages still run." >&2
+
+# Ensure gpud is up on the box BEFORE the stack starts: the in-compose gpu-tunnel sidecar runs with
+# ExitOnForwardFailure, so if gpud (50050) isn't listening yet the sidecar's forward fails and it
+# just retries every 5s. Bringing gpud up first lets the tunnel establish immediately. The tunnel
+# itself IS the sidecar (comes up with `up`), so there's no host tunnel to manage here. Non-fatal.
+gpu_ensure_gpud || true
 
 # All 7 app services (api + workers + beat) share ONE image tag (yapper:latest). A plain
 # `up --build` fans out 7 parallel builds that race to export that SAME tag into Docker's

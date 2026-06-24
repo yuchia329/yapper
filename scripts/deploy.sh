@@ -17,6 +17,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# shellcheck source=lib/gpu.sh
+. scripts/lib/gpu.sh
+
 DELIVERY="${DELIVERY:-push}"
 
 # Pick the image tag. Priority: explicit IMAGE_TAG > clean git sha > git sha + UTC timestamp (dirty).
@@ -38,7 +41,7 @@ else
 fi
 [ "$TAG" = "latest" ] && { echo "!! refusing to deploy tag 'latest' (IfNotPresent won't re-pull it)" >&2; exit 1; }
 
-echo "==> 1/2  build + deliver image   (DELIVERY=${DELIVERY}, tag=${TAG})"
+echo "==> 1/3  build + deliver image   (DELIVERY=${DELIVERY}, tag=${TAG})"
 case "$DELIVERY" in
   push) IMAGE_TAG="$TAG" bash scripts/build_and_push.sh ;;
   # side-load must import under the SAME name the manifest references (docker.io/yuchia329/yapper),
@@ -47,8 +50,18 @@ case "$DELIVERY" in
   *) echo "!! DELIVERY must be 'push' or 'load'" >&2; exit 1 ;;
 esac
 
-echo "==> 2/2  terraform apply @ ${TAG}   (rolling update via the auto-tunnel)"
-TF_VAR_image_tag="$TAG" bash scripts/tf.sh apply
+echo "==> 2/3  terraform apply @ ${TAG}   (rolls the pods + applies the in-cluster gpu-tunnel; via the auto :6443 tunnel)"
+# Pass the tag as -var (HIGHEST precedence) so it always wins over any image_tag pinned in
+# terraform.tfvars. A tfvars value silently overrides TF_VAR_*, which would make this a no-op:
+# the manifest's `yapper:latest` never gets rewritten -> IfNotPresent -> the pods never roll.
+# tf.sh brings up the `ssh -L 6443` k3s-API tunnel if it isn't already (idempotent); terraform
+# (re)applies the gpu-tunnel Deployment so the in-cluster ssh forward to gpud exists.
+bash scripts/tf.sh apply -var "image_tag=${TAG}"
+
+echo "==> 3/3  ensure gpud on the GPU box   (so the freshly-rolled workers' ASR/TTS leases succeed)"
+# The in-cluster gpu-tunnel pod forwards to gpud, but only if gpud is actually running on the box.
+# Idempotent + non-fatal: a down/unreachable box doesn't fail the deploy of the CPU/LLM/render path.
+gpu_ensure_gpud || true
 
 echo
 echo ">> deployed ${TAG}. watch the rollout (needs the :6443 tunnel up):"

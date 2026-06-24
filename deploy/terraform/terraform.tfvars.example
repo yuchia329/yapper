@@ -2,7 +2,10 @@
 # TF_VAR_* environment variables instead of living in this file.
 
 kubeconfig_path = "~/.kube/yapper-k3s.yaml"   # points at the k3s API (via the ssh -L 6443 tunnel)
-image_tag       = "latest"                   # set to the git sha you built with build_and_load.sh
+# Do NOT pin image_tag here. scripts/deploy.sh supplies the per-deploy tag via
+# `terraform apply -var image_tag=<sha>`, and -var overrides this file. A pin here matters only for a
+# bare `terraform apply` / TF_VAR_image_tag flow — where tfvars beats TF_VAR_* and silently freezes
+# the rollout tag (the bug that left the pods on :latest).
 
 # AWS (creds come from the AWS_* env / profile, NOT here)
 aws_region              = "us-east-1"

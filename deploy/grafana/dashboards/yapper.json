@@ -89,32 +89,35 @@
     {
       "id": 9,
       "type": "timeseries",
-      "title": "GPU free VRAM per GPU",
+      "title": "GPU VRAM used per GPU",
+      "description": "VRAM consumed per GPU (total - free). Rising bars = less headroom before the next ASR (~7.6GB) / TTS (~4.5GB) instance can launch.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
-      "fieldConfig": { "defaults": { "unit": "decmbytes" }, "overrides": [] },
-      "targets": [{ "expr": "yapper_gpud_gpu_free_mb", "legendFormat": "gpu {{gpu}}", "refId": "A" }]
+      "fieldConfig": { "defaults": { "unit": "decmbytes", "min": 0 }, "overrides": [] },
+      "targets": [{ "expr": "yapper_gpud_gpu_total_mb - yapper_gpud_gpu_free_mb", "legendFormat": "gpu {{gpu}}", "refId": "A" }]
     },
 
     { "id": 100, "type": "row", "title": "Pipeline stage timing", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 } },
     {
       "id": 10,
-      "type": "timeseries",
-      "title": "Back-half stage time (avg)",
-      "description": "Mean wall time per back-half stage (understand/script/tts/edl/subs/render) over recent runs.",
+      "type": "bargauge",
+      "title": "Back-half stage time (avg, latest)",
+      "description": "Mean wall time per back-half stage (understand/script/tts/edl/subs/render). One bar per stage at its latest value — far more legible than a flat trend when run volume is low. Hover the row for the trend.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 21 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": { "calc": "lastNotNull", "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
       "targets": [{ "expr": "yapper_stage_seconds_avg{scope=\"run\", status=\"ran\"}", "legendFormat": "{{stage}}", "refId": "A" }]
     },
     {
       "id": 11,
-      "type": "timeseries",
-      "title": "Front-half stage time (avg)",
-      "description": "Mean wall time per front-half stage (ingest/audio/asr/shots/scenes) over recent movies.",
+      "type": "bargauge",
+      "title": "Front-half stage time (avg, latest)",
+      "description": "Mean wall time per front-half stage (ingest/audio/asr/shots/scenes) over recent movies. One bar per stage at its latest value — clearer than a trend at low volume.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 21 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": { "calc": "lastNotNull", "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "s", "min": 0 }, "overrides": [] },
       "targets": [{ "expr": "yapper_stage_seconds_avg{scope=\"movie\", status=\"ran\"}", "legendFormat": "{{stage}}", "refId": "A" }]
     },
 
@@ -129,53 +132,60 @@
     },
     {
       "id": 18,
-      "type": "timeseries",
-      "title": "LLM spend by stage",
-      "description": "Cumulative MiniMax USD attributed to the understand (vision MAP) vs script (reasoning REDUCE) pass.",
+      "type": "bargauge",
+      "title": "LLM spend by stage (cumulative)",
+      "description": "Cumulative MiniMax USD attributed to the understand (vision MAP) vs script (reasoning REDUCE) pass. This is a running total, so a time series just steps up at each run — a bar of the current total per stage reads better.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 30 },
-      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": { "calc": "lastNotNull", "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "min": 0 }, "overrides": [] },
       "targets": [{ "expr": "yapper_llm_stage_cost_usd_total", "legendFormat": "{{stage}}", "refId": "A" }]
     },
     {
       "id": 19,
-      "type": "timeseries",
-      "title": "LLM tokens by stage",
+      "type": "bargauge",
+      "title": "LLM tokens by stage (cumulative)",
+      "description": "Cumulative LLM tokens per stage and direction (in/out). Running total — a bar of the current value per series is clearer than a stepping trend at low volume.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 30 },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": { "calc": "lastNotNull", "fields": "", "values": false } },
+      "fieldConfig": { "defaults": { "unit": "short", "min": 0 }, "overrides": [] },
       "targets": [{ "expr": "yapper_llm_stage_tokens_total", "legendFormat": "{{stage}} {{direction}}", "refId": "A" }]
     },
 
-    { "id": 102, "type": "row", "title": "Render (CPU-bound)", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 } },
+    { "id": 102, "type": "row", "title": "Render & host pressure (node-exporter)", "collapsed": false, "gridPos": { "h": 1, "w": 24, "x": 0, "y": 38 } },
     {
       "id": 12,
       "type": "timeseries",
-      "title": "Render: worker CPU (cores)",
-      "description": "ffmpeg/libx264 CPU in the combined worker (prod drains all queues incl. render in worker-cpu). Against its cpu:\"2\" limit, sustained ~2 means render is CPU-bound.",
+      "title": "Host CPU busy (cores)",
+      "description": "Cores busy on the box (node-exporter — same source as 'Root disk free %'). Render is the dominant CPU user on this single 2-vCPU node, so sustained ~2 = render is CPU-bound. NOTE: the old per-container query needed a cAdvisor/kubelet scrape, which this Prometheus does not have.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 8, "x": 0, "y": 39 },
-      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
-      "targets": [{ "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"yapper\", pod=~\"worker-cpu.*\", container!=\"\", container!=\"POD\"}[5m]))", "legendFormat": "{{pod}}", "refId": "A" }]
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0 }, "overrides": [] },
+      "targets": [{ "expr": "sum(rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))", "legendFormat": "cores busy", "refId": "A" }]
     },
     {
       "id": 13,
       "type": "timeseries",
-      "title": "Render: CPU throttled (cores)",
-      "description": "CPU the cgroup wanted but was denied by the 2-core quota. >0 during render confirms CPU starvation.",
+      "title": "Host load avg vs cores",
+      "description": "Run-queue pressure (node_load1/5). When load climbs above the core count (~2) the box is oversubscribed — the real 'render starves everything' signal on a single node. Replaces the old CPU-throttle query, which showed NO data: nothing here scrapes cAdvisor, and with a cpu:\"2\" limit equal to the 2-core box, CFS throttling never fires anyway.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 8, "x": 8, "y": 39 },
-      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
-      "targets": [{ "expr": "sum by (pod) (rate(container_cpu_cfs_throttled_seconds_total{namespace=\"yapper\", pod=~\"worker-cpu.*\", container!=\"\", container!=\"POD\"}[5m]))", "legendFormat": "{{pod}}", "refId": "A" }]
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 2 }, { "color": "red", "value": 4 }] } }, "overrides": [] },
+      "targets": [
+        { "expr": "node_load1", "legendFormat": "load 1m", "refId": "A" },
+        { "expr": "node_load5", "legendFormat": "load 5m", "refId": "B" }
+      ]
     },
     {
       "id": 14,
       "type": "timeseries",
-      "title": "Worker memory (working set)",
+      "title": "Host memory used %",
+      "description": "Box memory pressure (node-exporter). The worker shares this 8GB box with redis/postgres/api; sustained >90% risks an OOM during render. NOTE: the old per-container working-set query needed a cAdvisor scrape, which is absent here.",
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 39 },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
-      "targets": [{ "expr": "sum by (pod) (container_memory_working_set_bytes{namespace=\"yapper\", pod=~\"worker-cpu.*\", container!=\"\", container!=\"POD\"})", "legendFormat": "{{pod}}", "refId": "A" }]
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 75 }, { "color": "red", "value": 90 }] } }, "overrides": [] },
+      "targets": [{ "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)", "legendFormat": "mem used %", "refId": "A" }]
     },
     {
       "id": 15,

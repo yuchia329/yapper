@@ -5,6 +5,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Yapper 短片解說</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="alternate icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/static/favicon.svg" />
   <meta name="description" content="Yapper 短片解說 — funny AI commentary for movies & short clips." />
   <meta property="og:title" content="Yapper 短片解說" />
   <meta property="og:description" content="Funny AI commentary for movies & short clips." />
@@ -810,6 +813,7 @@
     // ---- accordion (collapse/expand movie cards; persists across the 5s poll) --
     const expanded = new Set();      // movie ids currently expanded
     const seenMovies = new Set();    // movie ids the default-expand rule has run for (once each)
+    const errorOpened = new Set();   // run ids whose error auto-opened the card (once each)
 
     function setMovieExpanded(id, open) {
       if (open) expanded.add(id); else expanded.delete(id);
@@ -904,6 +908,28 @@
       } catch (e) { alert("could not start: " + e); }
     }
 
+    // Recover a pipeline that stopped on a stage error (no re-upload):
+    //   mode="resume"  -> continue from the failed stage (reuses every cached artifact before it)
+    //   mode="restart" -> wipe all artifacts and re-run from the first stage (keeps the upload)
+    async function retryMovie(movieId, mode, lang) {
+      if (mode === "restart" &&
+          !confirm("Start over from the first stage? This re-runs the whole pipeline (re-analysis included). Your upload is kept — no re-upload needed.")) return;
+      try {
+        await api(`/api/movies/${movieId}/retry`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(lang ? { mode, lang } : { mode })
+        });
+        setMovieExpanded(movieId, true);
+        if (mode === "restart") {
+          // the old run rows are gone server-side; drop their stale divs so the fresh run shows
+          const host = document.getElementById(`runs-${movieId}`);
+          if (host) host.innerHTML = "";
+        }
+        loadMovies();              // refresh movie state + restart the 5s poll (front half)
+        renderMovieRuns(movieId);  // refresh + re-stream the back-half run (resume case)
+      } catch (e) { alert(`could not ${mode}: ` + (e.message || e)); }
+    }
+
     function streamRun(runId) {
       if (streaming.has(runId)) return;
       streaming.add(runId);
@@ -926,18 +952,24 @@
       const playBtn = (r.status === "done" && r.has_output)
         ? `<button class="ghost playbtn" onclick="togglePlayer('run','${r.id}')">${playerLabel('run', playOpen)}</button>`
         : "";
-      // Once a run is finished (done or error), offer a one-click regenerate of THIS language
-      // (a different language is started from the upload card's picker).
-      const regenBtn = (r.status === "done" || r.status === "error")
-        ? `<button class="ghost" onclick="makeRun('${r.movie_id}','${r.lang}',true)" title="Generate fresh ${r.lang} commentary">↻ Regenerate</button>`
-        : "";
+      // A finished run offers a one-click regenerate of THIS language; a FAILED run instead offers
+      // Resume (continue from the failed stage) + Start over (re-run the whole pipeline from stage 1,
+      // keeping the upload). A different language is started from the upload card's picker.
+      let actionBtns = "";
+      if (r.status === "done") {
+        actionBtns = `<button class="ghost" onclick="makeRun('${r.movie_id}','${r.lang}',true)" title="Generate fresh ${r.lang} commentary">↻ Regenerate</button>`;
+      } else if (r.status === "error") {
+        actionBtns =
+          `<button class="ghost" onclick="retryMovie('${r.movie_id}','resume','${r.lang}')" title="Continue from the failed stage (reuses everything done so far)">▶ Resume</button>` +
+          `<button class="ghost" onclick="retryMovie('${r.movie_id}','restart','${r.lang}')" title="Re-run the whole pipeline from the first stage (keeps your upload)">↻ Start over</button>`;
+      }
       const parts = [];
       if (r.llm_tokens_in || r.llm_tokens_out) parts.push(`${fmtTokens(r.llm_tokens_in)} in / ${fmtTokens(r.llm_tokens_out)} out`);
       if (r.output_duration_sec) parts.push(`${fmtDur(r.output_duration_sec)} commentary`);
       info.innerHTML = `<div class="row">
       <b>${r.lang}</b> <span class="badge ${r.status}">${r.status}</span>
       <span class="muted">${parts.join(" · ")}</span>
-      <span style="margin-left:auto"></span>${playBtn}${regenBtn}
+      <span style="margin-left:auto"></span>${playBtn}${actionBtns}
     </div>
     ${r.error ? `<div class="muted" style="color:var(--err)">${r.error}</div>` : ""}
     <div class="progress-line">${progressLine(r.all_stages, r.stages, r.status, r.estimated_remaining_sec)}</div>
@@ -960,8 +992,11 @@
           host.appendChild(el);
         }
         renderRunInfo(r);
-        // an active run forces its movie open so the live progress stays visible
+        // an active run forces its movie open so the live progress stays visible; a FAILED run
+        // opens it once too, so the Resume / Start over buttons are visible (not hidden in a
+        // collapsed card). The once-guard lets the user re-collapse it afterwards.
         if (r.status === "queued" || r.status === "running") { streamRun(r.id); setMovieExpanded(movieId, true); }
+        else if (r.status === "error" && !errorOpened.has(r.id)) { errorOpened.add(r.id); setMovieExpanded(movieId, true); }
       }
       const card = document.getElementById(`movie-${movieId}`);
       const rc = card && card.querySelector(".mruncount");
@@ -973,7 +1008,12 @@
       if (m.status === "ready")
         return `<select id="lang-${m.id}"><option value="zh">中文 解說</option><option value="en">English commentary</option></select>
       <button onclick="makeRun('${m.id}', document.getElementById('lang-${m.id}').value)">Generate commentary</button>`;
-      if (m.status === "error") return `<span class="muted" style="color:var(--err)">${m.error || "error"}</span>`;
+      // Front half stopped on a stage error: offer the same recovery as a failed run — Resume from
+      // the failed stage, or Start over from stage 1 (both keep the upload, no re-upload needed).
+      if (m.status === "error")
+        return `<span class="muted" style="color:var(--err)">${m.error || "error"}</span>
+      <button class="ghost" onclick="retryMovie('${m.id}','resume')" title="Continue from the failed stage (reuses everything done so far)">▶ Resume</button>
+      <button class="ghost" onclick="retryMovie('${m.id}','restart')" title="Re-run the whole pipeline from the first stage (keeps your upload)">↻ Start over</button>`;
       return "";
     }
 
@@ -1025,11 +1065,12 @@
       card.querySelector(".msteps-line").innerHTML = showSteps ? progressLine(m.all_stages, m.stages, m.status, m.estimated_remaining_sec) : "";
       card.querySelector(".msteps").innerHTML = showSteps ? trackHtml(m.all_stages, m.stages, m.now, m.stage_kinds) : "";
 
-      // default expand ONCE per movie: a lone movie, or an in-flight one, opens; finished stays
+      // default expand ONCE per movie: a lone movie, anything in-flight, OR a FAILED front half
+      // opens (so its Resume / Start over buttons are visible); only an idle 'ready' movie stays
       // collapsed. After first sight the user's manual toggle wins (the poll won't reopen it).
       if (!seenMovies.has(m.id)) {
         seenMovies.add(m.id);
-        if (isOnly || (m.status !== "ready" && m.status !== "error")) expanded.add(m.id);
+        if (isOnly || m.status !== "ready") expanded.add(m.id);
       }
       card.classList.toggle("open", expanded.has(m.id));
       card.querySelector(".movie-summary").setAttribute("aria-expanded", expanded.has(m.id) ? "true" : "false");
@@ -1055,6 +1096,7 @@
     window.addEventListener("DOMContentLoaded", () => {
       $("#upload").addEventListener("click", uploadFlow);
       window.makeRun = makeRun;
+      window.retryMovie = retryMovie;
       window.togglePlayer = togglePlayer;
       window.toggleMovie = toggleMovie;
       window.setMovieExpanded = setMovieExpanded;

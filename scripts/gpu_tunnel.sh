@@ -1,41 +1,56 @@
 #!/usr/bin/env bash
-# Open the SSH tunnel the platform needs to reach gpud + the on-demand instance pool on
-# the GPU box. Forwards gpud (50050) + every port in GPUD_PORT_RANGE, so growing the pool
-# (raising GPUD_ASR_MAX / GPUD_TTS_MAX) needs NO change here as long as it stays in range.
+# Local NON-DOCKER GPU access: idempotently ensure gpud is up on the box AND a host ssh tunnel to
+# it exists, so the CLI / a bare `yapper_web` can reach gpud at localhost:50050 (set
+# GPU_SUPERVISOR_TARGET=localhost:50050). Re-running is always safe — gpud is shared and the
+# tunnel is opened only "if not exist".
 #
-#   GPUD_PORT_RANGE=50060-50099 bash scripts/gpu_tunnel.sh nlp
-#   (then set GPU_SUPERVISOR_TARGET=localhost:50050)
+#   bash scripts/gpu_tunnel.sh              # ensure gpud + open a BACKGROUND tunnel, then return
+#   bash scripts/gpu_tunnel.sh nlp          # same, against ssh host 'nlp' (legacy positional form)
+#   bash scripts/gpu_tunnel.sh fg           # ensure gpud + run the tunnel in the FOREGROUND (blocks)
+#   bash scripts/gpu_tunnel.sh down         # tear down the background tunnel this script opened
 #
-# Prod runs the same flag list under autossh (see deploy/). SSH takes one -L per port;
-# for very wide ranges consider `sshuttle` instead.
+# Env: GPU_SSH_HOST (default nlp), GPUD_PORT (50050), GPUD_PORT_RANGE (50060-50099),
+#      GPUD_METRICS_PORT (9050), BIND (127.0.0.1; set 0.0.0.0 for a host.docker.internal fallback),
+#      ENSURE_GPUD=0 (skip the gpud check). See scripts/lib/gpu.sh.
 set -euo pipefail
 
-HOST="${1:-nlp}"
-GPUD_PORT="${GPUD_PORT:-50050}"
-RANGE="${GPUD_PORT_RANGE:-50060-50099}"
-LO="${RANGE%-*}"
-HI="${RANGE#*-}"
-# Bind address for the local forwards. Default 127.0.0.1; set BIND=0.0.0.0 so Docker
-# containers can reach the tunnel via host.docker.internal (compose-local + gpud).
-BIND="${BIND:-127.0.0.1}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/gpu.sh
+. "$SCRIPT_DIR/lib/gpu.sh"
 
-# Ensure gpud is up on the box BEFORE tunnelling to it — idempotent, so it's a no-op when
-# gpud is already running (prod + local dev share ONE gpud). The launch needs box-side
-# secrets, so it's delegated to a launcher ON THE BOX (server/start_gpud.sh + ~/jieshuo/
-# gpud.env). Set ENSURE_GPUD=0 to skip (e.g. when you manage gpud yourself).
-if [[ "${ENSURE_GPUD:-1}" == "1" ]]; then
-  echo "ensuring gpud on ${HOST}…"
-  # The literal ~ stays unexpanded in the quotes and expands on the BOX; GPUD_REMOTE_DIR is a
-  # client-side override of where ~/jieshuo lives on the box.
-  # shellcheck disable=SC2029
-  ssh "$HOST" "bash ${GPUD_REMOTE_DIR:-~/jieshuo}/server/start_gpud.sh" \
-    || echo "WARN: could not ensure gpud on ${HOST}; start it manually (see server/README_deploy.md)" >&2
+# First arg may be an ACTION (up|fg|down) or, for backward-compat, the HOST (e.g. `gpu_tunnel.sh nlp`).
+ACTION=up
+case "${1:-}" in
+  up|fg|down) ACTION="$1"; shift ;;
+esac
+export GPU_SSH_HOST="${GPU_SSH_HOST:-${1:-nlp}}"
+
+if [ "$ACTION" = down ]; then
+  gpu_tunnel_down
+  exit 0
 fi
 
-flags=( -N -L "${BIND}:${GPUD_PORT}:localhost:${GPUD_PORT}" )
-for p in $(seq "$LO" "$HI"); do
-  flags+=( -L "${BIND}:${p}:localhost:${p}" )
-done
+# Both up + fg first make sure gpud is actually running on the box (non-fatal — tunnelling to a
+# down gpud is pointless, but we still surface the tunnel for partial use).
+gpu_ensure_gpud || true
 
-echo "tunneling gpud ${GPUD_PORT} + range ${LO}-${HI} to ${HOST} on ${BIND} ($((HI-LO+2)) ports)…"
-exec ssh "${flags[@]}" "$HOST"
+if [ "$ACTION" = up ]; then
+  gpu_ensure_tunnel
+  echo
+  echo ">> ready. point the app at it:  export GPU_SUPERVISOR_TARGET=localhost:${GPUD_PORT:-50050}"
+  echo "   stop the tunnel:             bash scripts/gpu_tunnel.sh down"
+  exit 0
+fi
+
+# ACTION = fg: foreground, blocking tunnel (Ctrl-C to stop). Idempotent: bail if one's already up.
+PORT="${GPUD_PORT:-50050}"
+if gpu_tunnel_port_open "$PORT"; then
+  echo ">> gpud tunnel already up on 127.0.0.1:${PORT} — nothing to do (Ctrl-C a previous run to replace it)"
+  exit 0
+fi
+RANGE="${GPUD_PORT_RANGE:-50060-50099}"; LO="${RANGE%-*}"; HI="${RANGE#*-}"
+BIND="${BIND:-127.0.0.1}"; METRICS="${GPUD_METRICS_PORT:-9050}"
+flags=( -N -L "${BIND}:${PORT}:localhost:${PORT}" -L "${BIND}:${METRICS}:localhost:${METRICS}" )
+for p in $(seq "$LO" "$HI"); do flags+=( -L "${BIND}:${p}:localhost:${p}" ); done
+echo ">> tunneling gpud ${PORT} + pool ${LO}-${HI} + metrics ${METRICS} to ${GPU_SSH_HOST} on ${BIND} (foreground; Ctrl-C to stop)…"
+exec ssh -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 "${flags[@]}" "$GPU_SSH_HOST"

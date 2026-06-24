@@ -272,6 +272,25 @@ def clear_back_half_artifacts(session_id: str, movie_id: str, slug: str, lang: s
     return deleted
 
 
+def clear_movie_artifacts(session_id: str, movie_id: str, slug: str) -> int:
+    """Wipe ALL cached artifacts for a movie — the shared front half (probe/transcript/shots/
+    scenes/clip-index) AND every language's back half — from S3 + the local working dir, so a
+    full "start over" recomputes from the first stage (ingest). The SOURCE upload lives under a
+    separate ``sources/…`` prefix and is left untouched, so the user never re-uploads. Returns the
+    number of S3 objects deleted. Must run BEFORE the chain is re-enqueued (tasks re-materialize
+    from S3, so a stale cached copy there would otherwise be pulled back down)."""
+    prefix = f"{_artifact_prefix(session_id, movie_id, slug)}/"
+    deleted = 0
+    try:
+        deleted = storage().delete_prefix(prefix)
+    except Exception:  # noqa: BLE001 — best-effort; a leftover object just gets overwritten
+        log.warning("start-over: could not clear S3 prefix %s", prefix, exc_info=True)
+    # drop the whole local working dir too; the source re-downloads from S3 on the next _prepare
+    _prune_movie_scratch(session_id, movie_id)
+    log.info("start-over: cleared all artifacts %s (%d S3 objects)", prefix, deleted)
+    return deleted
+
+
 def _prune_movie_scratch(session_id: str, movie_id: str) -> None:
     """Best-effort: drop the local working dir (an ``emptyDir`` on the node's root disk) once
     artifacts are safely in S3. S3 is the source of truth, so a later phase re-materializes on

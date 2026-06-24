@@ -119,9 +119,11 @@ TTS_REF_WAV=~/jieshuo/voices/narrator.wav TTS_REF_TEXT="参考音频的文字" \
 The box is reached via SSH port-forwarding. With gpud, forward gpud + the instance range
 once (a helper generates the flags); the pool can grow within the range with no re-tunnel:
 ```bash
-GPUD_PORT_RANGE=50060-50099 bash scripts/gpu_tunnel.sh nlp   # ensures gpud (idempotent), then forwards 50050 + 50060-50099
-# then GPU_SUPERVISOR_TARGET=localhost:50050   (BIND=0.0.0.0 -> host.docker.internal:50050 for compose-local)
-# ENSURE_GPUD=0 to skip the auto-start and only tunnel.
+bash scripts/gpu_tunnel.sh nlp   # ensure gpud (idempotent) + open a BACKGROUND tunnel (50050 + pool 50060-50099 + metrics 9050), then return
+# then: export GPU_SUPERVISOR_TARGET=localhost:50050   (BIND=0.0.0.0 -> host.docker.internal:50050 for compose-local)
+bash scripts/gpu_tunnel.sh down  # tear that background tunnel back down
+# Re-running is safe (no-op if the tunnel is already up). Knobs: ENSURE_GPUD=0 skips the gpud
+# auto-start; `bash scripts/gpu_tunnel.sh fg` runs the tunnel in the FOREGROUND instead (blocks).
 ```
 Prod runs the same forwards under an autossh sidecar in the worker-asr/worker-tts pods
 (see deploy/k8s/overlays/prod/patch-gpu-sidecar.yaml). Always-on (option B) dev tunnel:

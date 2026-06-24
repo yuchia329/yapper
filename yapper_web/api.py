@@ -31,8 +31,10 @@ from . import logging_config, metrics
 from .budget import Budget
 from .db import (
     Movie,
+    MovieStage,
     MovieStatus,
     Run,
+    RunStage,
     RunStatus,
     init_db,
     session_scope,
@@ -114,6 +116,14 @@ class CreateRun(BaseModel):
     force: bool = (
         False  # regenerate a fresh recap even if one already exists for this language
     )
+
+
+class RetryMovie(BaseModel):
+    # "resume": re-run from the failed stage, reusing every cached artifact before it.
+    # "restart": clear all artifacts (front + back) and re-run from the first stage (ingest),
+    #            keeping only the uploaded source so the user never re-uploads.
+    mode: str = "resume"
+    lang: str | None = None  # which language run to resume (back half); defaults to the movie's
 
 
 def _stage_rows(stages: list | None) -> list[dict]:
@@ -425,6 +435,101 @@ def create_run(body: CreateRun, sid: str = SessionId):
         return _run_view(db.get(Run, rid))
 
 
+@app.post("/api/movies/{movie_id}/retry")
+def retry_movie(movie_id: str, body: RetryMovie, sid: str = SessionId):
+    """Recover a pipeline that stopped on a stage error — without re-uploading the video.
+
+    - ``mode="resume"``: continue from the failed stage. A failed front half (movie error) re-runs
+      the front-half chain (cached stages are skipped, so only the failed step onward recomputes),
+      then auto-starts the back half; a failed back half re-runs that chain for the language.
+    - ``mode="restart"``: wipe every cached artifact (front + back) and re-run from the first stage
+      (ingest). The uploaded source is kept, so it's a clean slate without a re-upload.
+    """
+    from .tasks import clear_movie_artifacts, start_back_half, start_front_half
+
+    mode = body.mode.lower()
+    if mode not in ("resume", "restart"):
+        raise HTTPException(400, f"unknown mode {body.mode!r}; expected 'resume' or 'restart'")
+
+    with session_scope() as db:
+        movie = db.get(Movie, movie_id)
+        if movie is None or movie.session_id != sid:
+            raise HTTPException(404, "movie not found")
+        if movie.status == MovieStatus.registered:
+            raise HTTPException(409, "nothing to retry — the upload hasn't been completed")
+        slug = movie.slug
+        lang = (body.lang or movie.default_lang or SUPPORTED_LANGS[0]).lower()
+        front_failed = movie.status == MovieStatus.error
+        target_run = db.scalar(
+            select(Run).where(Run.movie_id == movie_id, Run.lang == lang)
+        )
+        back_failed = target_run is not None and target_run.status == RunStatus.error
+        if mode == "resume" and not front_failed and not back_failed:
+            raise HTTPException(409, "nothing to resume — no stage is in an error state")
+        # Protect the GPU box: same per-session concurrency cap as a fresh run (the failed
+        # run we're reviving isn't counted as active, so a recovery is never blocked by itself).
+        active = (
+            db.query(Run)
+            .filter(
+                Run.session_id == sid,
+                Run.status.in_([RunStatus.queued, RunStatus.running]),
+            )
+            .count()
+        )
+        if active >= S.max_concurrent_runs_per_session:
+            raise HTTPException(
+                429, f"too many concurrent runs ({S.max_concurrent_runs_per_session})"
+            )
+
+    # --- restart: clear everything, re-run from ingest (keep the upload) -----------------
+    if mode == "restart":
+        clear_movie_artifacts(sid, movie_id, slug)
+        with session_scope() as db:
+            movie = db.get(Movie, movie_id)
+            movie.status = MovieStatus.uploaded
+            movie.error = None
+            movie.duration_sec = None
+            db.query(MovieStage).filter(MovieStage.movie_id == movie_id).delete()
+            # Drop the runs (and their stage rows): the front half re-runs and ``mark_ready``
+            # auto-starts a fresh back-half run for the movie's default language. Leaving an old
+            # queued/done row would make ``mark_ready`` skip the auto-start (it only revives an
+            # *errored* run), and a stale 'done' row would point at an artifact we just deleted.
+            run_ids = [r.id for r in db.query(Run).filter(Run.movie_id == movie_id).all()]
+            for rid in run_ids:
+                db.query(RunStage).filter(RunStage.run_id == rid).delete()
+            db.query(Run).filter(Run.movie_id == movie_id).delete()
+        start_front_half(movie_id)
+        return {"ok": True, "mode": "restart", "movie_id": movie_id}
+
+    # --- resume: front half failed -> re-run the front chain (skips cached stages) -------
+    if front_failed:
+        with session_scope() as db:
+            movie = db.get(Movie, movie_id)
+            movie.status = MovieStatus.uploaded
+            movie.error = None
+            db.query(MovieStage).filter(
+                MovieStage.movie_id == movie_id, MovieStage.status == "error"
+            ).delete()
+        start_front_half(movie_id)  # cached front stages skip; failed stage onward re-runs, then auto back half
+        return {"ok": True, "mode": "resume", "scope": "front", "movie_id": movie_id}
+
+    # --- resume: back half failed -> re-run the back chain for this language -------------
+    with session_scope() as db:
+        run = db.scalar(select(Run).where(Run.movie_id == movie_id, Run.lang == lang))
+        if run is None or run.status != RunStatus.error:
+            raise HTTPException(409, f"nothing to resume for language {lang!r}")
+        run.status = RunStatus.queued
+        run.error = None
+        run.output_key = None
+        run.output_duration_sec = None
+        db.query(RunStage).filter(
+            RunStage.run_id == run.id, RunStage.status == "error"
+        ).delete()
+        rid = run.id
+    start_back_half(rid)  # no artifact clearing -> the pipeline resumes at the failed back-half stage
+    return {"ok": True, "mode": "resume", "scope": "back", "run_id": rid}
+
+
 def _fetch_run(run_id: str, sid: str) -> dict:
     with session_scope() as db:
         run = db.get(Run, run_id)
@@ -511,5 +616,11 @@ if _STATIC.exists():
     @app.get("/")
     def index():
         return FileResponse(_STATIC / "index.html")
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        # Browsers (and the /api/docs Swagger page) probe /favicon.ico at the root; serve the
+        # one SVG icon for all of them (modern browsers render SVG favicons fine).
+        return FileResponse(_STATIC / "favicon.svg", media_type="image/svg+xml")
 
     app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")

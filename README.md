@@ -12,13 +12,25 @@ short **clips** like vlogs (a 1–3 min riff). English (YouTube-style) commentar
 
 ## Demo
 
+A 25-second taste (plays inline) — then the full recap on YouTube:
+
+<p align="center">
+  <video src="https://raw.githubusercontent.com/yuchia329/movie_narrative/main/docs/demo-clip.mp4" width="640" controls poster="https://img.youtube.com/vi/LF0VHx4xo_8/maxresdefault.jpg"></video>
+</p>
+
 <p align="center">
   <a href="https://www.youtube.com/watch?v=LF0VHx4xo_8&t=311s">
-    <img src="https://img.youtube.com/vi/LF0VHx4xo_8/maxresdefault.jpg" width="640" alt="Watch a sample Yapper recap on YouTube">
+    <img src="https://img.youtube.com/vi/LF0VHx4xo_8/maxresdefault.jpg" width="480" alt="Watch the full Yapper recap on YouTube">
   </a>
   <br>
-  <em>▶ Watch a sample recap on YouTube</em>
+  <em>▶ Watch the full recap on YouTube</em>
 </p>
+
+<!-- The inline clip above streams docs/demo-clip.mp4 via raw.githubusercontent (works once the
+     file is committed + pushed to `main`). GitHub's support for <video> raw URLs can vary — if it
+     shows a blank box, use the bulletproof method instead: open a new GitHub issue, drag
+     docs/demo-clip.mp4 into the comment box, copy the https://github.com/user-attachments/assets/…
+     URL GitHub generates, and put that URL (on its own line) in place of the <video> tag. -->
 
 ---
 

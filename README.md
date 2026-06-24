@@ -15,7 +15,7 @@ short **clips** like vlogs (a 1–3 min riff). English (YouTube-style) commentar
 A 25-second taste (plays inline) — then the full recap on YouTube:
 
 <p align="center">
-  <video src="https://raw.githubusercontent.com/yuchia329/movie_narrative/main/docs/demo-clip.mp4" width="640" controls poster="https://img.youtube.com/vi/LF0VHx4xo_8/maxresdefault.jpg"></video>
+  <video src="docs/demo-clip.mp4" width="640" controls poster="https://img.youtube.com/vi/LF0VHx4xo_8/maxresdefault.jpg"></video>
 </p>
 
 <p align="center">
@@ -26,11 +26,12 @@ A 25-second taste (plays inline) — then the full recap on YouTube:
   <em>▶ Watch the full recap on YouTube</em>
 </p>
 
-<!-- The inline clip above streams docs/demo-clip.mp4 via raw.githubusercontent (works once the
-     file is committed + pushed to `main`). GitHub's support for <video> raw URLs can vary — if it
-     shows a blank box, use the bulletproof method instead: open a new GitHub issue, drag
-     docs/demo-clip.mp4 into the comment box, copy the https://github.com/user-attachments/assets/…
-     URL GitHub generates, and put that URL (on its own line) in place of the <video> tag. -->
+<!-- The inline clip uses a RELATIVE path so it previews in local Markdown viewers (VS Code, etc.).
+     On GitHub.com a relative <video> src is unreliable — for the published README use the
+     bulletproof method: open a new GitHub issue, drag docs/demo-clip.mp4 into the comment box, copy
+     the https://github.com/user-attachments/assets/… URL GitHub generates, and replace the
+     <video src="…"> above with that URL (renders a real inline player on GitHub). The YouTube
+     thumbnail below always works as the fallback. -->
 
 ---
 

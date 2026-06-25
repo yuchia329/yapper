@@ -175,6 +175,35 @@
       flex: none;
     }
 
+    /* tab switcher above the embedded demo video */
+    .video-tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .video-tab {
+      background: var(--panel);
+      color: var(--mut);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .video-tab:hover {
+      color: var(--fg);
+      border-color: var(--acc);
+    }
+
+    .video-tab.active {
+      color: #fff;
+      background: var(--acc);
+      border-color: var(--acc);
+    }
+
     .hero-video {
       position: relative;
       width: 100%;
@@ -626,7 +655,8 @@
         <li><span class="hs-n">2</span> AI watches &amp; writes the commentary</li>
         <li><span class="hs-n">3</span> Get your narrated video</li>
       </ol>
-      <!-- DEMO VIDEO: set DEMO_YT_ID in the <script> below to the 11-char YouTube id. -->
+      <!-- DEMO VIDEOS: set DEMO_VIDEOS in the <script> below (11-char YouTube ids). -->
+      <div class="video-tabs" id="video-tabs"></div>
       <div class="hero-video" id="hero-video"></div>
     </section>
     <div class="card">
@@ -702,17 +732,31 @@
       return r.json();
     });
 
-    // ---- demo video ------------------------------------------------------------
-    // EDIT THIS: the 11-char YouTube id of the curated sample commentary. "" hides the box.
-    const DEMO_YT_ID = "LF0VHx4xo_8";
-    function mountHeroVideo() {
-      if (!DEMO_YT_ID) return;                       // .hero-video:empty stays hidden
+    // ---- demo videos -----------------------------------------------------------
+    // EDIT THIS: curated sample commentaries. Each {id} is an 11-char YouTube id; the
+    // first entry is the default tab. Empty array hides the box + tabs entirely.
+    const DEMO_VIDEOS = [
+      { label: "Demo Video English", id: "EBBCRAN1YGs" },
+      { label: "Demo Video Chinese", id: "LF0VHx4xo_8" },
+    ];
+    function showHeroVideo(i) {
       const host = document.getElementById("hero-video");
       if (!host) return;
-      host.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${DEMO_YT_ID}?rel=0"
-        title="Sample commentary" loading="lazy" allowfullscreen
+      const v = DEMO_VIDEOS[i];
+      host.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${v.id}?rel=0"
+        title="${v.label}" loading="lazy" allowfullscreen
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"
         referrerpolicy="strict-origin-when-cross-origin"></iframe>`;
+      document.querySelectorAll(".video-tab").forEach((t, j) => t.classList.toggle("active", j === i));
+    }
+    function mountHeroVideo() {
+      if (!DEMO_VIDEOS.length) return;               // .hero-video:empty stays hidden
+      const tabs = document.getElementById("video-tabs");
+      if (tabs) {
+        tabs.innerHTML = DEMO_VIDEOS.map((v, i) =>
+          `<button type="button" class="video-tab" onclick="showHeroVideo(${i})">${v.label}</button>`).join("");
+      }
+      showHeroVideo(0);
     }
 
     // ---- stage display ---------------------------------------------------------
@@ -1122,6 +1166,7 @@
       window.togglePlayer = togglePlayer;
       window.toggleMovie = toggleMovie;
       window.setMovieExpanded = setMovieExpanded;
+      window.showHeroVideo = showHeroVideo;
       mountHeroVideo();
       loadMovies();
       setInterval(tickRunning, 1000);   // advance the running stage's elapsed timer

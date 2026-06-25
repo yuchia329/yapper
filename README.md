@@ -7,7 +7,8 @@ short **clips** like vlogs (a 1–3 min riff). English (YouTube-style) commentar
 
 🔗 **[Live demo](https://yapper.yuchia.dev)**  · 
 📊 **[Grafana dashboard](https://grafana.yuchia.dev/d/yapper-overview/yapper-c2b7-overview?orgId=1&from=now-24h&to=now&timezone=America%2FLos_Angeles&var-datasource=prometheus&refresh=auto)** ·
-🎬 **[Demo output on YouTube](https://youtu.be/LF0VHx4xo_8)**
+🎬 **[Demo output (English)](https://youtu.be/EBBCRAN1YGs)** ·
+🎬 **[Demo output (Chinese)](https://youtu.be/LF0VHx4xo_8)**
 
 ## How it works
 
